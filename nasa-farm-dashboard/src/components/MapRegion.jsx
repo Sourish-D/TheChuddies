@@ -10,21 +10,30 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-export default function MapRegion({ lat, lon }) {
-  const [areaAcres, setAreaAcres] = useState(50);
+function squareBounds(latitude, longitude, sideKm) {
+  const halfSide = sideKm / 2;
+  const latitudeOffset = halfSide / 111.32;
+  const longitudeOffset = halfSide / (111.32 * Math.cos(latitude * Math.PI / 180));
+  return [
+    [latitude - latitudeOffset, longitude - longitudeOffset],
+    [latitude + latitudeOffset, longitude + longitudeOffset],
+  ];
+}
+
+export default function MapRegion({ lat, lon, onNdviResult, onNdviError }) {
+  const [sideKm, setSideKm] = useState(1);
+  const [loading, setLoading] = useState(false);
 
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
   const rectangleRef = useRef(null);
   const initialCenterRef = useRef([lat, lon]);
-  const initialAreaRef = useRef(areaAcres);
 
   // Initialize Map on mount
   useEffect(() => {
     if (!mapInstanceRef.current) {
       const [initialLat, initialLon] = initialCenterRef.current;
-      const initialAreaAcres = initialAreaRef.current;
       mapInstanceRef.current = L.map(mapContainerRef.current).setView([initialLat, initialLon], 11);
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -34,9 +43,7 @@ export default function MapRegion({ lat, lon }) {
 
       // Initial marker and square highlighted region
       markerRef.current = L.marker([initialLat, initialLon]).addTo(mapInstanceRef.current);
-      const bounds = L.latLng(initialLat, initialLon).toBounds(
-        Math.sqrt(initialAreaAcres * 4046.8564224)
-      );
+      const bounds = squareBounds(initialLat, initialLon, sideKm);
       rectangleRef.current = L.rectangle(bounds, {
         color: '#0d6efd',
         fillColor: '#0d6efd',
@@ -57,9 +64,7 @@ export default function MapRegion({ lat, lon }) {
   useEffect(() => {
     if (mapInstanceRef.current) {
       const newLatLng = [lat, lon];
-      const bounds = L.latLng(lat, lon).toBounds(
-        Math.sqrt(areaAcres * 4046.8564224)
-      );
+      const bounds = squareBounds(lat, lon, sideKm);
 
       mapInstanceRef.current.setView(newLatLng);
 
@@ -71,7 +76,28 @@ export default function MapRegion({ lat, lon }) {
         rectangleRef.current.setBounds(bounds);
       }
     }
-  }, [lat, lon, areaAcres]);
+  }, [lat, lon, sideKm]);
+
+  const calculateNdvi = async () => {
+    setLoading(true);
+    onNdviError('');
+    onNdviResult(null);
+    try {
+      const { _southWest: southwest, _northEast: northeast } = rectangleRef.current.getBounds();
+      const response = await fetch('/api/ndvi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bbox: [southwest.lng, southwest.lat, northeast.lng, northeast.lat] }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'NDVI calculation failed.');
+      onNdviResult(data);
+    } catch (error) {
+      onNdviError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="container mt-5" style={{ maxWidth: '700px' }}>
@@ -81,19 +107,22 @@ export default function MapRegion({ lat, lon }) {
         {/* Scale Slider */}
         <div className="mb-4">
           <label htmlFor="scaleSlider" className="form-label small fw-bold">
-            Region Area: <span className="text-primary">{areaAcres} acres</span>
+            Square side: <span className="text-primary">{sideKm} km</span>
           </label>
           <input
             type="range"
             className="form-range"
             id="scaleSlider"
-            min="50"
-            max="1000"
-            step="1"
-            value={areaAcres}
-            onChange={(e) => setAreaAcres(Number(e.target.value))}
+            min="0.5"
+            max="5"
+            step="0.5"
+            value={sideKm}
+            onChange={(e) => setSideKm(Number(e.target.value))}
           />
         </div>
+        <button className="btn btn-success mb-3" onClick={calculateNdvi} disabled={loading}>
+          {loading ? 'Calculating...' : 'Calculate NDVI for selected square'}
+        </button>
 
         {/* Map Display Container */}
         <div 
