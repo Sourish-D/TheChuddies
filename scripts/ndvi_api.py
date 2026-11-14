@@ -10,6 +10,7 @@ from scripts.hls_ndvi import average_hls_ndvi
 
 
 app = FastAPI()
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class NdviRequest(BaseModel):
@@ -24,7 +25,7 @@ def calculate_ndvi(request: NdviRequest) -> dict[str, float | str]:
             request.bbox,
             (end - timedelta(days=14)).isoformat(),
             end.isoformat(),
-            Path("hls-data"),
+            PROJECT_ROOT / "hls-data",
         )
     except (ValueError, OSError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

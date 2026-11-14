@@ -106,7 +106,7 @@ def average_hls_ndvi(
     if (end - start).days > ANALYSIS_DAYS:
         raise ValueError(f"Date range cannot exceed {ANALYSIS_DAYS} days")
 
-    earthaccess.login()
+    earthaccess.login(persist=True)
     granules = earthaccess.search_data(
         short_name=HLSL30_LANDSAT_SHORT_NAME,
         bounding_box=bounding_box,
