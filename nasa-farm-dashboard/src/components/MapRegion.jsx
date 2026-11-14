@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -10,18 +10,20 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-function squareBounds(latitude, longitude, sideKm) {
-  const halfSide = sideKm / 2;
-  const latitudeOffset = halfSide / 111.32;
-  const longitudeOffset = halfSide / (111.32 * Math.cos(latitude * Math.PI / 180));
-  return [
-    [latitude - latitudeOffset, longitude - longitudeOffset],
-    [latitude + latitudeOffset, longitude + longitudeOffset],
-  ];
+function getSquareBounds(latitude, longitude, areaAcres) {
+  const sideLengthMeters = Math.sqrt(areaAcres * 4046.8564224);
+  return L.latLng(latitude, longitude).toBounds(sideLengthMeters);
 }
 
-export default function MapRegion({ lat, lon, onNdviResult, onNdviError }) {
-  const [sideKm, setSideKm] = useState(1);
+export default function MapRegion({
+  lat,
+  lon,
+  areaAcres,
+  onAreaAcresChange,
+  onCoordinatesChange,
+  onNdviResult,
+  onNdviError,
+}) {
   const [loading, setLoading] = useState(false);
 
   const mapContainerRef = useRef(null);
@@ -29,8 +31,13 @@ export default function MapRegion({ lat, lon, onNdviResult, onNdviError }) {
   const markerRef = useRef(null);
   const rectangleRef = useRef(null);
   const areaAcresRef = useRef(areaAcres);
+  const onCoordinatesChangeRef = useRef(onCoordinatesChange);
   const initialCenterRef = useRef([lat, lon]);
-  const initialAreaRef = useRef(areaAcres);
+
+  useEffect(() => {
+    areaAcresRef.current = areaAcres;
+    onCoordinatesChangeRef.current = onCoordinatesChange;
+  }, [areaAcres, onCoordinatesChange]);
 
   // Initialize Map on mount
   useEffect(() => {
@@ -45,13 +52,12 @@ export default function MapRegion({ lat, lon, onNdviResult, onNdviError }) {
 
       // Initial marker and square highlighted region
       markerRef.current = L.marker([initialLat, initialLon]).addTo(mapInstanceRef.current);
-      const bounds = squareBounds(initialLat, initialLon, sideKm);
+      const bounds = getSquareBounds(initialLat, initialLon, areaAcresRef.current);
       rectangleRef.current = L.rectangle(bounds, {
         color: '#0d6efd',
         fillColor: '#0d6efd',
         fillOpacity: 0.2,
-        }
-      ).addTo(mapInstanceRef.current);
+      }).addTo(mapInstanceRef.current);
 
       const map = mapInstanceRef.current;
       const rectangle = rectangleRef.current;
@@ -76,7 +82,7 @@ export default function MapRegion({ lat, lon, onNdviResult, onNdviError }) {
           dragStart.center.lat + event.latlng.lat - dragStart.pointer.lat,
           dragStart.center.lng + event.latlng.lng - dragStart.pointer.lng
         );
-        rectangle.setBounds(getSquareBounds(center, areaAcresRef.current));
+        rectangle.setBounds(getSquareBounds(center.lat, center.lng, areaAcresRef.current));
         markerRef.current.setLatLng(center);
       };
 
@@ -89,7 +95,7 @@ export default function MapRegion({ lat, lon, onNdviResult, onNdviError }) {
         map.dragging.enable();
 
         const center = rectangle.getBounds().getCenter();
-        onCoordinatesChange({ lat: center.lat, lon: center.lng });
+        onCoordinatesChangeRef.current({ lat: center.lat, lon: center.lng });
       };
 
       rectangle.on('mousedown', startDragging);
@@ -108,13 +114,13 @@ export default function MapRegion({ lat, lon, onNdviResult, onNdviError }) {
         mapInstanceRef.current = null;
       }
     };
-  }, [onCoordinatesChange]);
+  }, []);
 
   // Update map view, marker, and square highlight when coordinates or area change
   useEffect(() => {
     if (mapInstanceRef.current) {
       const newLatLng = [lat, lon];
-      const bounds = squareBounds(lat, lon, sideKm);
+      const bounds = getSquareBounds(lat, lon, areaAcres);
 
       mapInstanceRef.current.setView(newLatLng);
 
@@ -126,7 +132,7 @@ export default function MapRegion({ lat, lon, onNdviResult, onNdviError }) {
         rectangleRef.current.setBounds(bounds);
       }
     }
-  }, [lat, lon, sideKm]);
+  }, [lat, lon, areaAcres]);
 
   const calculateNdvi = async () => {
     setLoading(true);
@@ -157,7 +163,7 @@ export default function MapRegion({ lat, lon, onNdviResult, onNdviError }) {
         {/* Scale Slider */}
         <div className="mb-4">
           <label htmlFor="scaleSlider" className="form-label small fw-bold">
-            Square side: <span className="text-primary">{sideKm} km</span>
+            Region area: <span className="text-primary">{areaAcres} acres</span>
           </label>
           <input
             type="range"
@@ -167,7 +173,7 @@ export default function MapRegion({ lat, lon, onNdviResult, onNdviError }) {
             max="1000"
             step="1"
             value={areaAcres}
-            onChange={(e) => setAreaAcres(Number(e.target.value))}
+            onChange={(e) => onAreaAcresChange(Number(e.target.value))}
           />
         </div>
         <button className="btn btn-success mb-3" onClick={calculateNdvi} disabled={loading}>

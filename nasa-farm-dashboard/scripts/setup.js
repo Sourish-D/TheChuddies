@@ -37,6 +37,11 @@ if (!existsSync(pythonExecutable)) {
   run(systemPython, ['-m', 'venv', pythonEnvironment])
 }
 
+const pipCheck = spawnSync(pythonExecutable, ['-m', 'pip', '--version'], { stdio: 'ignore' })
+if (pipCheck.error || pipCheck.status !== 0) {
+  run(pythonExecutable, ['-m', 'ensurepip', '--upgrade'])
+}
+
 run(pythonExecutable, [
   '-m',
   'pip',
