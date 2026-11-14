@@ -23,8 +23,11 @@ export default function MapRegion({
   onCoordinatesChange,
   onNdviResult,
   onNdviError,
+  onPowerResult,
+  onPowerError,
 }) {
-  const [loading, setLoading] = useState(false);
+  const [loadingNdvi, setLoadingNdvi] = useState(false);
+  const [loadingPower, setLoadingPower] = useState(false);
 
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -135,7 +138,7 @@ export default function MapRegion({
   }, [lat, lon, areaAcres]);
 
   const calculateNdvi = async () => {
-    setLoading(true);
+    setLoadingNdvi(true);
     onNdviError('');
     onNdviResult(null);
     try {
@@ -149,9 +152,29 @@ export default function MapRegion({
       if (!response.ok) throw new Error(data.detail || 'NDVI calculation failed.');
       onNdviResult(data);
     } catch (error) {
-      onNdviError(error.message);
+      onNdviError(error.message || 'NDVI calculation failed.');
     } finally {
-      setLoading(false);
+      setLoadingNdvi(false);
+    }
+  };
+
+  const fetchPowerData = async () => {
+    setLoadingPower(true);
+    onPowerError('');
+    onPowerResult(null);
+    try {
+      const response = await fetch('/api/power', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ latitude: lat, longitude: lon }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'NASA POWER request failed.');
+      onPowerResult(data);
+    } catch (error) {
+      onPowerError(error.message || 'NASA POWER request failed.');
+    } finally {
+      setLoadingPower(false);
     }
   };
 
@@ -162,23 +185,32 @@ export default function MapRegion({
 
         {/* Scale Slider */}
         <div className="mb-4">
-          <label htmlFor="scaleSlider" className="form-label small fw-bold">
-            Region area: <span className="text-primary">{areaAcres} acres</span>
+          <label htmlFor="areaSlider" className="form-label small fw-bold">
+            Square area: <span className="text-primary">{areaAcres} {areaAcres === 1 ? 'acre' : 'acres'}</span>
           </label>
           <input
             type="range"
             className="form-range"
-            id="scaleSlider"
-            min="50"
-            max="1000"
+            id="areaSlider"
+            min="1"
+            max="6177"
             step="1"
             value={areaAcres}
             onChange={(e) => onAreaAcresChange(Number(e.target.value))}
           />
         </div>
-        <button className="btn btn-success mb-3" onClick={calculateNdvi} disabled={loading}>
-          {loading ? 'Calculating...' : 'Calculate NDVI for selected square'}
-        </button>
+        <div className="d-flex flex-column flex-sm-row gap-2 mb-3">
+          <button className="btn btn-success" onClick={calculateNdvi} disabled={loadingNdvi}>
+            {loadingNdvi ? 'Calculating...' : 'Calculate NDVI for selected square'}
+          </button>
+          <button className="btn btn-outline-primary" onClick={fetchPowerData} disabled={loadingPower}>
+            {loadingPower ? 'Loading NASA POWER...' : 'Get NASA POWER climate data'}
+          </button>
+        </div>
+        <p className="small text-muted text-start">
+          NASA POWER climate data represents the source grid near the field center;
+          its native resolution is much coarser than a farm field.
+        </p>
 
         {/* Map Display Container */}
         <div 

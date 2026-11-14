@@ -25,3 +25,11 @@ Each computer needs its own setup and Earthdata login. HLS downloads are cached
 locally in the ignored `hls-data/` directory. To serve the app to everyone from
 a shared deployment, host the Python API and store Earthdata credentials
 securely on that server; never put credentials in the frontend or repository.
+
+The map area control is in acres. NASA POWER provides recent daily temperature,
+precipitation, humidity, and solar-energy summaries near the selected field
+center. POWER data is provided at its native, regional grid resolution, so it
+is context for the field rather than a field-scale estimate. The app does not
+bilinearly interpolate coarse grid data over the selected acreage.
+The [NASA POWER Daily API](https://power.larc.nasa.gov/docs/services/api/temporal/daily/)
+is public and does not require Earthdata credentials.
