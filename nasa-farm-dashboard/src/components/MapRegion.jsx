@@ -10,7 +10,8 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-function squareBounds(latitude, longitude, sideKm) {
+function squareBounds(latitude, longitude, areaAcres) {
+  const sideKm = Math.sqrt(areaAcres * 0.0040468564224);
   const halfSide = sideKm / 2;
   const latitudeOffset = halfSide / 111.32;
   const longitudeOffset = halfSide / (111.32 * Math.cos(latitude * Math.PI / 180));
@@ -20,15 +21,24 @@ function squareBounds(latitude, longitude, sideKm) {
   ];
 }
 
-export default function MapRegion({ lat, lon, onNdviResult, onNdviError }) {
-  const [sideKm, setSideKm] = useState(1);
-  const [loading, setLoading] = useState(false);
+export default function MapRegion({
+  lat,
+  lon,
+  onNdviResult,
+  onNdviError,
+  onPowerResult,
+  onPowerError,
+}) {
+  const [areaAcres, setAreaAcres] = useState(1);
+  const [loadingNdvi, setLoadingNdvi] = useState(false);
+  const [loadingPower, setLoadingPower] = useState(false);
 
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
   const rectangleRef = useRef(null);
   const initialCenterRef = useRef([lat, lon]);
+  const initialAreaRef = useRef(areaAcres);
 
   // Initialize Map on mount
   useEffect(() => {
@@ -43,7 +53,7 @@ export default function MapRegion({ lat, lon, onNdviResult, onNdviError }) {
 
       // Initial marker and square highlighted region
       markerRef.current = L.marker([initialLat, initialLon]).addTo(mapInstanceRef.current);
-      const bounds = squareBounds(initialLat, initialLon, sideKm);
+      const bounds = squareBounds(initialLat, initialLon, initialAreaRef.current);
       rectangleRef.current = L.rectangle(bounds, {
         color: '#0d6efd',
         fillColor: '#0d6efd',
@@ -64,7 +74,7 @@ export default function MapRegion({ lat, lon, onNdviResult, onNdviError }) {
   useEffect(() => {
     if (mapInstanceRef.current) {
       const newLatLng = [lat, lon];
-      const bounds = squareBounds(lat, lon, sideKm);
+      const bounds = squareBounds(lat, lon, areaAcres);
 
       mapInstanceRef.current.setView(newLatLng);
 
@@ -76,10 +86,10 @@ export default function MapRegion({ lat, lon, onNdviResult, onNdviError }) {
         rectangleRef.current.setBounds(bounds);
       }
     }
-  }, [lat, lon, sideKm]);
+  }, [lat, lon, areaAcres]);
 
   const calculateNdvi = async () => {
-    setLoading(true);
+    setLoadingNdvi(true);
     onNdviError('');
     onNdviResult(null);
     try {
@@ -93,9 +103,29 @@ export default function MapRegion({ lat, lon, onNdviResult, onNdviError }) {
       if (!response.ok) throw new Error(data.detail || 'NDVI calculation failed.');
       onNdviResult(data);
     } catch (error) {
-      onNdviError(error.message);
+      onNdviError(error.message || 'NDVI calculation failed.');
     } finally {
-      setLoading(false);
+      setLoadingNdvi(false);
+    }
+  };
+
+  const fetchPowerData = async () => {
+    setLoadingPower(true);
+    onPowerError('');
+    onPowerResult(null);
+    try {
+      const response = await fetch('/api/power', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ latitude: lat, longitude: lon }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'NASA POWER request failed.');
+      onPowerResult(data);
+    } catch (error) {
+      onPowerError(error.message || 'NASA POWER request failed.');
+    } finally {
+      setLoadingPower(false);
     }
   };
 
@@ -106,23 +136,32 @@ export default function MapRegion({ lat, lon, onNdviResult, onNdviError }) {
 
         {/* Scale Slider */}
         <div className="mb-4">
-          <label htmlFor="scaleSlider" className="form-label small fw-bold">
-            Square side: <span className="text-primary">{sideKm} km</span>
+          <label           htmlFor="areaSlider" className="form-label small fw-bold">
+            Square area: <span className="text-primary">{areaAcres} {areaAcres === 1 ? 'acre' : 'acres'}</span>
           </label>
           <input
             type="range"
             className="form-range"
-            id="scaleSlider"
-            min="0.5"
-            max="5"
-            step="0.5"
-            value={sideKm}
-            onChange={(e) => setSideKm(Number(e.target.value))}
+            id="areaSlider"
+            min="1"
+            max="6177"
+            step="1"
+            value={areaAcres}
+            onChange={(e) => setAreaAcres(Number(e.target.value))}
           />
         </div>
-        <button className="btn btn-success mb-3" onClick={calculateNdvi} disabled={loading}>
-          {loading ? 'Calculating...' : 'Calculate NDVI for selected square'}
-        </button>
+        <div className="d-flex flex-column flex-sm-row gap-2 mb-3">
+          <button className="btn btn-success" onClick={calculateNdvi} disabled={loadingNdvi}>
+            {loadingNdvi ? 'Calculating...' : 'Calculate NDVI for selected square'}
+          </button>
+          <button className="btn btn-outline-primary" onClick={fetchPowerData} disabled={loadingPower}>
+            {loadingPower ? 'Loading NASA POWER...' : 'Get NASA POWER climate data'}
+          </button>
+        </div>
+        <p className="small text-muted text-start">
+          NASA POWER climate data represents the source grid near the field center;
+          its native resolution is much coarser than a farm field.
+        </p>
 
         {/* Map Display Container */}
         <div 
