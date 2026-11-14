@@ -1,0 +1,5 @@
+earthaccess
+numpy
+rasterio
+fastapi
+uvicorn
