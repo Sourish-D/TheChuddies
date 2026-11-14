@@ -1,43 +1,37 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-export default function Geocoder({ lat: latitude, lon: longitude, onCoordinatesChange }) {
-  const [address, setAddress] = useState('');
-  const [displayName, setDisplayName] = useState('Manual or search input');
+export default function Geocoder({
+  lat: latitude,
+  lon: longitude,
+  onCoordinatesChange,
+  initialAddress = '',
+}) {
+  const [address, setAddress] = useState(initialAddress);
+  const [displayName, setDisplayName] = useState(initialAddress || 'Manual or search input');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const initialLookupStartedRef = useRef(false);
 
-  const handleCoordinateChange = (coordinate, value) => {
-    const parsedValue = Number(value);
-    const isLatitude = coordinate === 'lat';
-    const isValid = Number.isFinite(parsedValue)
-      && (isLatitude ? parsedValue >= -90 && parsedValue <= 90 : parsedValue >= -180 && parsedValue <= 180);
-
-    if (isValid) {
-      onCoordinatesChange({
-        lat: isLatitude ? parsedValue : latitude,
-        lon: isLatitude ? longitude : parsedValue,
-      });
-    }
-  };
-
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!address.trim()) return;
+  const lookupAddress = useCallback(async (query) => {
+    if (!query.trim()) return;
 
     setLoading(true);
     setError('');
 
     try {
-      // Fetching from OpenStreetMap's Nominatim API
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`,
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`,
         {
           headers: {
             'User-Agent': 'ViteReactGeocoderApp/1.0'
           }
         }
       );
-      
+
+      if (!response.ok) {
+        throw new Error('Location lookup failed');
+      }
+
       const data = await response.json();
 
       if (data && data.length > 0) {
@@ -66,6 +60,32 @@ export default function Geocoder({ lat: latitude, lon: longitude, onCoordinatesC
     } finally {
       setLoading(false);
     }
+  }, [onCoordinatesChange]);
+
+  useEffect(() => {
+    if (initialAddress && !initialLookupStartedRef.current) {
+      initialLookupStartedRef.current = true;
+      lookupAddress(initialAddress);
+    }
+  }, [initialAddress, lookupAddress]);
+
+  const handleCoordinateChange = (coordinate, value) => {
+    const parsedValue = Number(value);
+    const isLatitude = coordinate === 'lat';
+    const isValid = Number.isFinite(parsedValue)
+      && (isLatitude ? parsedValue >= -90 && parsedValue <= 90 : parsedValue >= -180 && parsedValue <= 180);
+
+    if (isValid) {
+      onCoordinatesChange({
+        lat: isLatitude ? parsedValue : latitude,
+        lon: isLatitude ? longitude : parsedValue,
+      });
+    }
+  };
+
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    await lookupAddress(address);
   };
 
   return (
