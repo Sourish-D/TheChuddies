@@ -5,7 +5,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.js",
     "setup": "node scripts/setup.js",
     "auth": "node scripts/auth.js",
     "build": "vite build",
