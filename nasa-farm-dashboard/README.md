@@ -117,6 +117,9 @@ ideally with one year per line (for example `2023: corn`, `2024: soybeans`,
 or local soil and management details, recommendations remain conditional. This
 repository does not include a Random Forest model or yield-training dataset:
 the API accepts externally generated predictions but does not generate them.
+For a regional agroforestry suggestion, the analysis sends Gemini farm
+coordinates rounded to 0.1 degree; the suggested tree is conditional and
+should be checked against local native-species and site guidance.
 Temporary Gemini 429/5xx service failures are retried up to two times.
 SDK-internal retries are disabled and each attempt has a 45-second timeout,
 so persistent provider failures return to the frontend instead of leaving the

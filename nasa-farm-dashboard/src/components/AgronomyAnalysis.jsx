@@ -267,6 +267,10 @@ export default function AgronomyAnalysis({ coordinates, geometry, onMapInsightCh
         seasons: observations,
         crop_history: cropHistoryEntries,
         crop_profiles: cropProfiles,
+        farm_location: {
+          latitude: coordinates.lat,
+          longitude: coordinates.lon,
+        },
       }
 
       if (includeSmap) {

@@ -83,6 +83,7 @@ def example_request() -> AgronomyAnalysisRequest:
         "crop_profiles": [
             {"crop": "soybean", "nitrogen_fixing": True, "root_depth_class": "medium"}
         ],
+        "farm_location": {"latitude": 43.095796, "longitude": -80.047},
         "yield_predictions": [
             {
                 "year": 2025,
@@ -116,6 +117,11 @@ class AgronomyFeatureTests(unittest.TestCase):
         self.assertEqual(payload["year_over_year"]["gdd_total_c_days_difference"], 5)
         self.assertEqual(payload["random_forest_features"]["previous_crop"], "soybean")
         self.assertEqual(payload["random_forest_yield_predictions"][0]["predicted_yield"], 185.5)
+        self.assertEqual(payload["farm_location"], {
+            "latitude": 43.1,
+            "longitude": -80.0,
+            "precision": "rounded to 0.1 degree for regional context",
+        })
         self.assertIsNone(payload["seasons"][0]["precipitation_anomaly_mm"])
         self.assertIsNone(payload["seasons"][0]["drought_stress_anomaly_mm"])
 
@@ -204,7 +210,10 @@ class AgronomyFeatureTests(unittest.TestCase):
         self.assertIn("qualitative yield outlook", system_instruction)
         self.assertIn("numeric yield estimates", system_instruction)
         self.assertIn("animated 5-card frontend walkthrough", system_instruction)
-        self.assertIn("under 180 words", system_instruction)
+        self.assertIn("under 200 words", system_instruction)
+        self.assertIn("agroforestry suggestion", system_instruction)
+        self.assertIn("one tree species", system_instruction)
+        self.assertIn("rounded to 0.1 degree", system_instruction)
         self.assertIn("No bold, italics", system_instruction)
         self.assertIn("exactly 3 distinct", system_instruction)
         self.assertIn("exactly 3 numbered short options", system_instruction)

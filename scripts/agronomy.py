@@ -101,11 +101,17 @@ class YieldPrediction(FiniteModel):
     model: str = Field(default="Random Forest", max_length=100)
 
 
+class FarmLocation(FiniteModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
 class AgronomyAnalysisRequest(FiniteModel):
     seasons: list[CropSeason] = Field(min_length=1, max_length=20)
     crop_history: list[CropHistoryEntry] = Field(default_factory=list, max_length=50)
     crop_profiles: list[CropProfile] = Field(default_factory=list, max_length=30)
     yield_predictions: list[YieldPrediction] = Field(default_factory=list, max_length=20)
+    farm_location: FarmLocation | None = None
     gdd_base_temperature_c: float = Field(default=10.0, ge=0, le=30)
 
     @model_validator(mode="after")
@@ -358,6 +364,15 @@ def build_agronomy_payload(
 
     return {
         "schema_version": 1,
+        "farm_location": (
+            {
+                "latitude": round(request.farm_location.latitude, 1),
+                "longitude": round(request.farm_location.longitude, 1),
+                "precision": "rounded to 0.1 degree for regional context",
+            }
+            if request.farm_location is not None
+            else None
+        ),
         "data_sources": {
             "weather": {
                 "product": "NASA POWER daily T2M_MAX, T2M_MIN, PRECTOTCORR",
