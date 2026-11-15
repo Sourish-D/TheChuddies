@@ -24,7 +24,7 @@ from rasterio.warp import transform_geom
 HLSL30_SHORT_NAME = "HLSS30"
 HLSL30_LANDSAT_SHORT_NAME = "HLSL30"
 MAX_SIDE_KM = 5.0
-ANALYSIS_DAYS = 15
+ANALYSIS_DAYS = 60
 
 
 def polygon_bounds(geometry: dict[str, object]) -> tuple[float, float, float, float]:
@@ -159,7 +159,7 @@ def average_hls_ndvi(
         raise ValueError("start_date must not be after end_date")
     start = date.fromisoformat(start_date)
     end = date.fromisoformat(end_date)
-    if (end - start).days > ANALYSIS_DAYS:
+    if (end - start).days + 1 > ANALYSIS_DAYS:
         raise ValueError(f"Date range cannot exceed {ANALYSIS_DAYS} days")
 
     earthaccess.login(persist=True)
@@ -170,7 +170,11 @@ def average_hls_ndvi(
         cloud_cover=cloud_cover,
     )
     if not granules:
-        raise ValueError("No HLSL30 granules matched the requested field and date range")
+        raise ValueError(
+            f"No HLSL30 granules matched the requested field between "
+            f"{start_date} and {end_date} with cloud cover from "
+            f"{cloud_cover[0]}% to {cloud_cover[1]}%"
+        )
 
     download_root = Path(download_dir)
     downloaded = earthaccess.download(granules, local_path=download_root)

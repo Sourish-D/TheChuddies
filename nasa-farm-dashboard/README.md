@@ -40,7 +40,8 @@ requests display a configuration message instead of calling a missing endpoint.
 
 The map opens at 43.095796, -80.047. Search, enter coordinates, or click the
 map to choose a location, then draw an editable polygon around the field. The
-displayed area is calculated from that polygon in acres. HLS scene searches use
+displayed area is calculated from that polygon in acres. HLS NDVI searches up to
+the latest 60 days of scenes with at most 30% cloud cover. Scene searches use
 the polygon's bounding box, while NDVI pixels are masked to the actual polygon.
 The API continues to accept the legacy `bbox` request for existing clients.
 

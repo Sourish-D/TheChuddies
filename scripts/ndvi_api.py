@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, model_validator
 
-from scripts.hls_ndvi import average_hls_ndvi, polygon_bounds
+from scripts.hls_ndvi import ANALYSIS_DAYS, average_hls_ndvi, polygon_bounds
 from scripts.smap_data import SmapDataError, get_smap_data
 
 
@@ -64,6 +64,7 @@ class SmapRequest(BaseModel):
 def calculate_ndvi(request: NdviRequest) -> dict[str, float | str]:
     try:
         end = date.today()
+        start = end - timedelta(days=ANALYSIS_DAYS - 1)
         bounding_box = (
             polygon_bounds(request.geometry)
             if request.geometry is not None
@@ -73,14 +74,14 @@ def calculate_ndvi(request: NdviRequest) -> dict[str, float | str]:
             raise ValueError("Provide either a bbox or a GeoJSON Polygon geometry.")
         score = average_hls_ndvi(
             bounding_box,
-            (end - timedelta(days=14)).isoformat(),
+            start.isoformat(),
             end.isoformat(),
             PROJECT_ROOT / "hls-data",
             field_geometry=request.geometry,
         )
     except (ValueError, OSError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {"average_ndvi": score, "start_date": (end - timedelta(days=14)).isoformat(),
+    return {"average_ndvi": score, "start_date": start.isoformat(),
             "end_date": end.isoformat()}
 
 
