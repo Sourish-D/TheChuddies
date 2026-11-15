@@ -603,6 +603,10 @@
   grid-column: 1 / -1;
 }
 
+.result-panel--smap {
+  grid-column: 1 / -1;
+}
+
 .result-panel h2 {
   display: flex;
   align-items: baseline;
@@ -643,6 +647,13 @@
 .power-values {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.smap-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-top: 22px;
 }
@@ -752,6 +763,51 @@
   }
 }
 
+@media (min-width: 801px) {
+  .hero-copy {
+    margin: clamp(92px, 13vh, 142px) 0 0;
+    padding-top: 0;
+  }
+
+  .hero-wordmark {
+    font-size: clamp(112px, 12.6vw, 174px);
+  }
+
+  .hero-tagline {
+    color: var(--forest);
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .hero-actions {
+    margin-top: 32px;
+  }
+
+  .hero-landscape {
+    height: 68%;
+  }
+
+  .farm-page {
+    width: min(100% - 72px, 1440px);
+  }
+
+  .farm-workspace {
+    grid-template-columns: minmax(320px, 0.34fr) minmax(0, 1fr);
+    gap: clamp(28px, 3vw, 40px);
+    align-items: start;
+  }
+
+  .workflow-panel {
+    min-height: 0;
+    padding: 22px;
+  }
+
+  .field-map {
+    height: clamp(440px, 56vh, 620px);
+    min-height: 0;
+  }
+}
+
 @media (max-width: 800px) {
   .site-header {
     height: 70px;
@@ -842,6 +898,10 @@
   .power-values {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     row-gap: 18px;
+  }
+
+  .smap-values {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

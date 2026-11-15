@@ -1,4 +1,5 @@
 earthaccess
+h5py
 numpy
 rasterio
 fastapi
