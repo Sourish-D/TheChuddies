@@ -375,6 +375,11 @@ export default function MapRegion({
   return (
     <section className="farm-workspace" aria-label="Farm location and boundary">
       <aside className="workflow-panel">
+        <div className="workflow-title">
+          <span className="section-kicker">NASA EARTH OBSERVATION · FIELD INTELLIGENCE</span>
+          <h1>Optimize your farm</h1>
+          <p>Choose a location, outline your field, then confirm to explore its data.</p>
+        </div>
         <div className="workflow-progress" aria-label={`Step ${step} of 3`}>
           {[1, 2, 3].map((number) => (
             <div className={`workflow-progress-step${number === step ? ' is-active' : ''}${number < step ? ' is-complete' : ''}`} key={number}>

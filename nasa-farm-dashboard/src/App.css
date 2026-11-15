@@ -993,3 +993,455 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+.site-shell--optimize {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  min-height: 520px;
+  overflow: hidden;
+  background: #e6ecdc;
+}
+
+.site-shell--optimize .site-header {
+  position: absolute;
+  z-index: 1200;
+  inset: 0 0 auto;
+  height: 76px;
+  padding: 0 clamp(18px, 3vw, 42px);
+  border: 0;
+  background: linear-gradient(180deg, rgba(248, 247, 239, 0.96), rgba(248, 247, 239, 0));
+}
+
+.site-shell--optimize .brand {
+  font-size: 30px;
+}
+
+.site-shell--optimize .header-link {
+  min-height: 42px;
+  padding: 0 15px;
+  border: 1px solid rgba(217, 222, 206, 0.9);
+  border-radius: 999px;
+  background: rgba(251, 250, 244, 0.94);
+  color: var(--forest);
+  font-size: 14px;
+}
+
+.site-shell--optimize .farm-page {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.site-shell--optimize .farm-workspace {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.site-shell--optimize .workflow-panel {
+  position: absolute;
+  z-index: 1100;
+  top: 92px;
+  bottom: 20px;
+  left: clamp(16px, 3vw, 44px);
+  display: block;
+  width: min(410px, calc(100% - 32px));
+  min-height: 0;
+  padding: 25px;
+  overflow: auto;
+  border: 1px solid rgba(217, 222, 206, 0.95);
+  border-radius: 16px;
+  background: rgba(251, 250, 244, 0.97);
+  box-shadow: 0 16px 48px rgba(38, 61, 45, 0.18);
+  scrollbar-color: #bdc8b1 transparent;
+  scrollbar-width: thin;
+}
+
+.workflow-title {
+  padding-bottom: 20px;
+}
+
+.workflow-title .section-kicker {
+  display: block;
+  font-size: 10px;
+}
+
+.workflow-title h1 {
+  margin: 8px 0 8px;
+  color: var(--forest);
+  font-size: clamp(28px, 3vw, 36px);
+  font-weight: 750;
+  letter-spacing: -0.07em;
+  line-height: 1.05;
+}
+
+.workflow-title p {
+  margin: 0;
+  color: var(--forest-soft);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.site-shell--optimize .workflow-progress {
+  gap: 8px;
+  padding: 16px 0;
+  border-top: 1px solid var(--sage-line);
+}
+
+.site-shell--optimize .workflow-progress-step {
+  gap: 8px;
+}
+
+.site-shell--optimize .workflow-progress-step span {
+  width: 30px;
+  height: 30px;
+  font-size: 12px;
+}
+
+.site-shell--optimize .workflow-progress-step small {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.site-shell--optimize .workflow-content {
+  padding-top: 20px;
+}
+
+.site-shell--optimize .workflow-content h2 {
+  margin: 8px 0 10px;
+  font-size: 26px;
+}
+
+.site-shell--optimize .workflow-content > p,
+.site-shell--optimize .data-actions > p {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.site-shell--optimize .location-panel {
+  margin-top: 20px;
+}
+
+.site-shell--optimize .location-search > label,
+.site-shell--optimize .coordinate-field label {
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.site-shell--optimize .search-control {
+  gap: 9px;
+}
+
+.site-shell--optimize .search-control input,
+.site-shell--optimize .coordinate-field input {
+  height: 48px;
+  padding: 0 13px;
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+.site-shell--optimize .search-button {
+  min-width: 72px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.site-shell--optimize .current-location {
+  display: block;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: var(--sage);
+}
+
+.site-shell--optimize .field-label {
+  color: var(--forest-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.site-shell--optimize .current-location p {
+  display: -webkit-box;
+  margin: 5px 0 0;
+  overflow: hidden;
+  color: var(--forest);
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.site-shell--optimize .coordinate-fields {
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.site-shell--optimize .coordinate-field input {
+  height: 44px;
+}
+
+.site-shell--optimize .location-hint {
+  font-size: 12px;
+}
+
+.site-shell--optimize .workflow-button {
+  min-height: 50px;
+  margin-top: 22px;
+  font-size: 15px;
+}
+
+.site-shell--optimize .boundary-actions {
+  gap: 10px;
+  margin-top: 21px;
+}
+
+.site-shell--optimize .boundary-actions .button,
+.site-shell--optimize .data-actions .button {
+  min-height: 46px;
+  padding: 0 15px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.site-shell--optimize .text-button {
+  padding: 10px 4px;
+  font-size: 13px;
+}
+
+.site-shell--optimize .selection-summary {
+  margin-top: 20px;
+  padding: 16px;
+}
+
+.site-shell--optimize .selection-summary span,
+.site-shell--optimize .selection-summary small {
+  font-size: 12px;
+}
+
+.site-shell--optimize .selection-summary strong {
+  font-size: 24px;
+}
+
+.site-shell--optimize .data-actions {
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 19px;
+}
+
+.site-shell--optimize .map-panel {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  display: block;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.site-shell--optimize .map-panel-heading {
+  display: none;
+}
+
+.site-shell--optimize .field-map {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.site-shell--optimize .map-hint {
+  position: absolute;
+  z-index: 600;
+  bottom: 18px;
+  left: 50%;
+  margin: 0;
+  padding: 11px 16px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(217, 222, 206, 0.9);
+  border-radius: 999px;
+  background: rgba(251, 250, 244, 0.96);
+  box-shadow: 0 4px 16px rgba(38, 61, 45, 0.12);
+  color: var(--forest);
+  font-size: 13px;
+}
+
+.site-shell--optimize .leaflet-top.leaflet-left {
+  right: 18px;
+  left: auto;
+}
+
+.site-shell--optimize .leaflet-control-zoom a,
+.site-shell--optimize .leaflet-draw-toolbar a {
+  width: 40px;
+  height: 40px;
+  line-height: 38px;
+  font-size: 20px;
+}
+
+.site-shell--optimize .leaflet-control-attribution {
+  bottom: 3px;
+  left: 8px;
+  width: fit-content;
+}
+
+.site-shell--optimize .results-section {
+  position: fixed;
+  z-index: 1050;
+  right: 20px;
+  bottom: 20px;
+  display: flex;
+  width: min(440px, calc(100vw - 460px));
+  max-height: 42dvh;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  overflow: auto;
+}
+
+.site-shell--optimize .result-panel {
+  padding: 17px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(38, 61, 45, 0.14);
+}
+
+.site-shell--optimize .result-panel--power,
+.site-shell--optimize .result-panel--smap {
+  grid-column: auto;
+}
+
+.site-shell--optimize .result-panel h2 {
+  font-size: 15px;
+}
+
+.site-shell--optimize .result-panel > p,
+.site-shell--optimize .power-heading p,
+.site-shell--optimize .power-value span,
+.site-shell--optimize .power-value small {
+  font-size: 12px;
+}
+
+.site-shell--optimize .farm-footer {
+  display: none;
+}
+
+@media (max-width: 800px) {
+  .site-shell--optimize .site-header {
+    height: 68px;
+    padding: 0 18px;
+  }
+
+  .site-shell--optimize .brand {
+    font-size: 27px;
+  }
+
+  .site-shell--optimize .header-link {
+    min-height: 40px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
+  .site-shell--optimize .workflow-panel {
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    width: auto;
+    max-height: min(54dvh, 570px);
+    padding: 18px;
+    border-radius: 14px;
+  }
+
+  .site-shell--optimize .workflow-title {
+    padding-bottom: 13px;
+  }
+
+  .site-shell--optimize .workflow-title h1 {
+    margin-top: 5px;
+    font-size: 28px;
+  }
+
+  .site-shell--optimize .workflow-title p {
+    font-size: 13px;
+  }
+
+  .site-shell--optimize .workflow-progress {
+    padding: 12px 0;
+  }
+
+  .site-shell--optimize .workflow-content {
+    padding-top: 15px;
+  }
+
+  .site-shell--optimize .workflow-content h2 {
+    font-size: 23px;
+  }
+
+  .site-shell--optimize .workflow-content > p,
+  .site-shell--optimize .data-actions > p {
+    font-size: 13px;
+  }
+
+  .site-shell--optimize .results-section {
+    top: 78px;
+    right: 12px;
+    bottom: auto;
+    width: min(380px, calc(100vw - 24px));
+    max-height: 28dvh;
+  }
+
+  .site-shell--optimize .leaflet-top.leaflet-left {
+    top: 78px;
+    right: 12px;
+  }
+
+  .site-shell--optimize .map-hint {
+    bottom: auto;
+    top: 125px;
+    max-width: calc(100vw - 40px);
+    text-align: center;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 480px) {
+  .site-shell--optimize .site-header {
+    padding: 0 14px;
+  }
+
+  .site-shell--optimize .workflow-panel {
+    max-height: min(76dvh, 570px);
+    padding: 16px;
+  }
+
+  .site-shell--optimize .workflow-title > p,
+  .site-shell--optimize .current-location,
+  .site-shell--optimize .location-hint {
+    display: none;
+  }
+
+  .site-shell--optimize .workflow-title .section-kicker {
+    font-size: 9px;
+  }
+
+  .site-shell--optimize .workflow-progress-step {
+    gap: 6px;
+  }
+
+  .site-shell--optimize .workflow-progress-step span {
+    width: 28px;
+    height: 28px;
+  }
+
+  .site-shell--optimize .workflow-progress-step small {
+    font-size: 11px;
+  }
+}
