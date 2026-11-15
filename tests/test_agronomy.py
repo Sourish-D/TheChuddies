@@ -1,8 +1,10 @@
 import io
 import json
 import os
+import tempfile
 import unittest
 from datetime import date
+from pathlib import Path
 from unittest.mock import patch
 
 from fastapi import HTTPException
@@ -186,10 +188,11 @@ class AgronomyFeatureTests(unittest.TestCase):
         kwargs = fake_models.kwargs
         self.assertIsNotNone(kwargs)
         assert kwargs is not None
-        self.assertIn(
-            "ABSOLUTE DATA GROUNDING",
-            getattr(kwargs["config"], "system_instruction"),
-        )
+        system_instruction = getattr(kwargs["config"], "system_instruction")
+        self.assertIn("Farm-specific measurements", system_instruction)
+        self.assertIn("general agronomic knowledge", system_instruction)
+        self.assertIn("2–4 ranked, practical", system_instruction)
+        self.assertIn("corn is not a nitrogen-fixing crop", system_instruction)
         self.assertIn("crop rotation", AGRONOMY_SYSTEM_INSTRUCTION.lower())
         self.assertEqual(kwargs["model"], "gemini-3.8-flash")
         contents = kwargs["contents"]
@@ -216,6 +219,7 @@ class AgronomyFeatureTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}, clear=True),
             patch("scripts.gemini_agronomy.genai.Client", FakeClient),
+            patch("scripts.gemini_agronomy.time.sleep"),
             self.assertRaises(HTTPException) as raised,
         ):
             generate_agronomy_markdown({"seasons": []})
@@ -223,8 +227,58 @@ class AgronomyFeatureTests(unittest.TestCase):
         self.assertEqual(raised.exception.status_code, 502)
         self.assertIn("temporarily unavailable", raised.exception.detail)
 
+    def test_gemini_retries_temporary_unavailability(self) -> None:
+        class FakeModels:
+            attempts = 0
+
+            def generate_content(self, **kwargs):
+                self.attempts += 1
+                if self.attempts < 3:
+                    raise APIError(
+                        code=503,
+                        response_json={"error": {"message": "temporarily unavailable"}},
+                    )
+
+                class Response:
+                    text = "## Recommended next steps\nTry again later."
+
+                return Response()
+
+        fake_models = FakeModels()
+
+        class FakeClient:
+            models = fake_models
+
+            def __init__(self, *, api_key: str) -> None:
+                self.api_key = api_key
+
+        with (
+            patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}, clear=True),
+            patch("scripts.gemini_agronomy.genai.Client", FakeClient),
+            patch("scripts.gemini_agronomy.time.sleep") as sleep,
+        ):
+            markdown = generate_agronomy_markdown({"seasons": []})
+
+        self.assertIn("Try again later", markdown)
+        self.assertEqual(fake_models.attempts, 3)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [1, 2])
+
 
 class AgronomyRequestValidationTests(unittest.TestCase):
+    def test_api_shutdown_removes_temporary_hls_data(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_root:
+            hls_directory = Path(temporary_root) / "hls-data"
+            hls_directory.mkdir()
+            (hls_directory / "scene.tif").touch()
+            with (
+                patch("scripts.ndvi_api.HLS_DATA_DIRECTORY", hls_directory),
+                patch.dict(os.environ, {"HLS_DATA_CLEANUP_BY_LAUNCHER": "0"}),
+                TestClient(app),
+            ):
+                pass
+
+            self.assertFalse(hls_directory.exists())
+
     def test_power_and_ndvi_date_range_validation(self) -> None:
         with self.assertRaises(ValueError):
             PowerRequest.model_validate({
@@ -252,9 +306,16 @@ class AgronomyRequestValidationTests(unittest.TestCase):
             {"date": "2025-05-01", "ndvi": 0.4},
             {"date": "2025-05-02", "ndvi": 0.6},
         ]
-        with patch("scripts.ndvi_api.hls_ndvi_timeseries", return_value=observations):
+        with (
+            patch("scripts.ndvi_api.HLS_DATA_DIRECTORY", Path("temporary-hls-cache")),
+            patch(
+                "scripts.ndvi_api.hls_ndvi_timeseries",
+                return_value=observations,
+            ) as hls_timeseries,
+        ):
             response = calculate_ndvi(request)
 
+        self.assertEqual(hls_timeseries.call_args.args[3], Path("temporary-hls-cache"))
         self.assertEqual(response["observations"], observations)
         average_ndvi = response["average_ndvi"]
         if not isinstance(average_ndvi, (int, float)):

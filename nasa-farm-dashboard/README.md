@@ -19,10 +19,12 @@ step. Do not commit or share that credentials file.
 URL printed by Vite. Stop both services with Ctrl+C.
 
 Each developer computer needs its own setup and Earthdata authentication. HLS
-downloads are cached in the repository's ignored `hls-data/` directory, so each
-computer downloads data as needed. For a shared deployed website, host the API
-on a server and configure Earthdata credentials as server-side secrets; never
-put them in frontend code or the repository.
+downloads are stored in a per-run temporary directory under the operating
+system's temp folder. Pressing Ctrl+C stops the services and removes that
+directory, along with any legacy repository `hls-data/` cache. SMAP is read
+remotely and only its requested values are retained in memory. For a shared
+deployed website, host the API on a server and configure Earthdata credentials
+as server-side secrets; never put them in frontend code or the repository.
 
 To use agronomy analysis locally, add your key to the repository-root `.env`:
 
@@ -94,13 +96,18 @@ summaries, root-zone moisture anomalies, and year-over-year comparisons. Keep
 rainfall (mm) and volumetric soil moisture (m³/m³) as separate features; they
 are not combined into an invented water-availability unit.
 
-The Gemini system instruction restricts analysis to the supplied payload.
-Nitrogen fixation, root depth, and pest-host rotation are discussed only when
-those properties are present in the supplied crop profiles. Missing baselines,
-previous seasons, or crop profiles remain missing. This repository does not
-include a Random Forest model or yield-training dataset: the API accepts and
-formats predictions if another service supplies them, but does not generate
-yield estimates.
+The Gemini system instruction keeps field-specific measurements grounded in
+the supplied payload while allowing clearly labeled qualitative agronomy
+knowledge for crop traits, synergies, and conditional rotation advice. It must
+flag conflicts such as corn marked nitrogen-fixing, and cannot infer site
+conditions, yields, or exact input rates. Add crop history oldest-to-newest,
+ideally with one year per line (for example `2023: corn`, `2024: soybeans`,
+`2025: corn`) to enable useful rotation reasoning. Without sufficient history
+or local soil and management details, recommendations remain conditional. This
+repository does not include a Random Forest model or yield-training dataset:
+the API accepts externally generated predictions but does not generate them.
+Temporary Gemini 429/5xx service failures are retried up to two times with
+short backoff delays; persistent failures are returned to the frontend.
 
 The season records accept the daily field names returned by `/api/power` and
 the `{date, ndvi}` observations returned by `/api/ndvi`. For example:

@@ -35,10 +35,13 @@ Do not commit or share this credentials file. After setup, `npm run dev` starts
 both the website and Python API; open the local URL printed by Vite and press
 Ctrl+C to stop the services.
 
-Each computer needs its own setup and Earthdata login. HLS downloads are cached
-locally in the ignored `hls-data/` directory. To serve the app to everyone from
-a shared deployment, host the Python API and store Earthdata credentials
-securely on that server; never put credentials in the frontend or repository.
+Each computer needs its own setup and Earthdata login. HLS downloads go in a
+per-run temporary directory and are removed when the app is stopped with
+Ctrl+C; any legacy root `hls-data/` cache is removed at shutdown as well. SMAP
+is read remotely and its bounded block cache is held in memory. To serve the
+app to everyone from a shared deployment, host the Python API and store
+Earthdata credentials securely on that server; never put credentials in the
+frontend or repository.
 
 The Leaflet map opens at 43.095796, -80.047. Choose a location, draw and edit
 the field boundary, review the calculated area in acres, and confirm it before

@@ -110,8 +110,8 @@ function App() {
 function SiteHeader({ navigate, compact = false }) {
   return (
     <header className={`site-header${compact ? ' site-header--compact' : ''}`}>
-      <a className="brand" href="#/" onClick={navigate('home')} aria-label="chuDirt home">
-        chu<span>Dirt</span>
+      <a className="brand" href="#/" onClick={navigate('home')} aria-label="DirtDoc home">
+        Dirt<span>Doc</span>
       </a>
       {compact && (
         <a className="header-link" href="#/" onClick={navigate('home')}>
@@ -130,7 +130,7 @@ function HomePage({ navigate }) {
           NASA EARTH OBSERVATION <span className="eyebrow-divider">·</span> AGRICULTURAL INTELLIGENCE
         </div>
         <div className="hero-copy">
-          <h1 id="hero-title" className="hero-wordmark">chuDirt</h1>
+          <h1 id="hero-title" className="hero-wordmark">DirtDoc</h1>
           <p className="hero-tagline">Intelligence beneath every field.</p>
         </div>
         <div className="hero-actions">

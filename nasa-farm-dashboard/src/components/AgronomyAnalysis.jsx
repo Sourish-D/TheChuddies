@@ -15,6 +15,35 @@ function previousYearDate(value) {
   return `${targetYear}-${String(month).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`
 }
 
+function parseCropHistory(value, currentYear) {
+  const lines = value.split('\n').map((line) => line.trim()).filter(Boolean)
+  if (!lines.length) return []
+
+  const hasYearLabels = lines.some((line) => /^\d{4}\s*:/.test(line))
+  if (hasYearLabels && lines.some((line) => !/^\d{4}\s*:\s*.+$/.test(line))) {
+    throw new Error('Use a year and crop on every history line, for example “2024: soybeans”.')
+  }
+
+  const entries = hasYearLabels
+    ? lines.flatMap((line) => {
+      const [, year, crops] = line.match(/^(\d{4})\s*:\s*(.+)$/)
+      return crops.split(',').map((crop) => ({ year: Number(year), crop: crop.trim() }))
+    })
+    : lines.flatMap((line) => line.split(',').map((crop) => crop.trim()).filter(Boolean))
+      .map((crop, index, crops) => ({
+        year: currentYear - crops.length + index,
+        crop,
+      }))
+
+  if (entries.some(({ year, crop }) => year < 1900 || year >= currentYear || !crop || crop.length > 100)) {
+    throw new Error(`Crop history must contain crop names (up to 100 characters) from years before ${currentYear}.`)
+  }
+  if (entries.length > 50) {
+    throw new Error('Enter no more than 50 crop-history entries.')
+  }
+  return entries.sort((a, b) => a.year - b.year)
+}
+
 function cropProfile(crop, nitrogenFixing, rootDepth, pestHostGroups) {
   const profile = { crop }
   if (nitrogenFixing !== '') profile.nitrogen_fixing = nitrogenFixing === 'yes'
@@ -95,10 +124,10 @@ function MarkdownContent({ markdown }) {
     if (!trimmed) {
       flushList()
       flushParagraph()
-    } else if (trimmed.startsWith('## ')) {
+    } else if (/^#{1,3} /.test(trimmed)) {
       flushList()
       flushParagraph()
-      blocks.push({ type: 'heading', content: trimmed.slice(3) })
+      blocks.push({ type: 'heading', content: trimmed.replace(/^#{1,3} /, '') })
     } else if (trimmed.startsWith('- ')) {
       flushParagraph()
       listItems.push(trimmed.slice(2))
@@ -187,10 +216,18 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
       return
     }
 
+    const currentYear = Number(startDate.slice(0, 4))
+    let cropHistoryEntries
+    try {
+      cropHistoryEntries = parseCropHistory(previousCrop, currentYear)
+    } catch (historyError) {
+      setError(historyError.message)
+      return
+    }
+
     setLoading(true)
     setProgress('Preparing the seasonal data requests…')
     try {
-      const currentYear = Number(startDate.slice(0, 4))
       const seasons = [
         { year: currentYear, start_date: startDate, end_date: endDate },
         {
@@ -236,15 +273,12 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
         currentSeason.rootzone_normal_m3_m3 = Number(rootzoneNormal)
       }
 
-      const cropProfiles = []
-      if (previousCrop.trim()) {
-        cropProfiles.push(cropProfile(
-          previousCrop.trim(),
-          previousNitrogenFixing,
-          previousRootDepth,
-          previousPestGroups,
-        ))
-      }
+      const cropProfiles = cropHistoryEntries.map(({ crop }, index) => cropProfile(
+        crop,
+        index === cropHistoryEntries.length - 1 ? previousNitrogenFixing : '',
+        index === cropHistoryEntries.length - 1 ? previousRootDepth : '',
+        index === cropHistoryEntries.length - 1 ? previousPestGroups : '',
+      ))
       cropProfiles.push(cropProfile(
         currentCrop.trim(),
         currentNitrogenFixing,
@@ -253,9 +287,7 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
       ))
       const request = {
         seasons: observations,
-        crop_history: previousCrop.trim()
-          ? [{ year: currentYear - 1, crop: previousCrop.trim() }]
-          : [],
+        crop_history: cropHistoryEntries,
         crop_profiles: cropProfiles,
         yield_predictions: yieldValue
           ? [{
@@ -297,7 +329,7 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
       <div className="agronomy-analysis-heading">
         <span className="section-kicker">GEMINI · GROUNDED AGRONOMY</span>
         <h3 id="agronomy-analysis-title">Season analysis</h3>
-        <p>Compare this season with the same dates last year using NASA data and crop details you provide.</p>
+        <p>Compare NASA observations, then get qualified rotation suggestions informed by your crop history and general agronomy.</p>
       </div>
       <form className="agronomy-form" onSubmit={runAnalysis}>
         <div className="agronomy-date-fields">
@@ -322,18 +354,18 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
           />
         </label>
         <label>
-          Previous year's crop
-          <input
-            type="text"
+          Recent crop history (oldest to newest)
+          <textarea
             value={previousCrop}
             onChange={(event) => setPreviousCrop(event.target.value)}
-            placeholder="Optional"
-            maxLength={100}
+            placeholder={'Optional; oldest first, one per line:\n2023: corn\n2024: soybeans\n2025: corn'}
+            maxLength={2000}
+            rows={3}
           />
         </label>
         <details className="agronomy-details">
           <summary>Optional crop traits and reference values</summary>
-          <p>Only enter crop traits and historical normals you know; Gemini won't fill in missing values.</p>
+          <p>Crop traits are optional. Gemini can use general agronomy knowledge and will flag uncertain or conflicting information.</p>
           <div className="agronomy-trait-fields">
             <label>
               Current crop: nitrogen-fixing?
@@ -364,7 +396,7 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
             {previousCrop.trim() && (
               <>
                 <label>
-                  Previous crop: nitrogen-fixing?
+                  Most recent historical crop: nitrogen-fixing?
                   <select value={previousNitrogenFixing} onChange={(event) => setPreviousNitrogenFixing(event.target.value)}>
                     <option value="">Not provided</option>
                     <option value="yes">Yes</option>
@@ -372,7 +404,7 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
                   </select>
                 </label>
                 <label>
-                  Previous crop: root depth
+                  Most recent historical crop: root depth
                   <select value={previousRootDepth} onChange={(event) => setPreviousRootDepth(event.target.value)}>
                     <option value="">Not provided</option>
                     <option value="shallow">Shallow</option>
@@ -381,7 +413,7 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
                   </select>
                 </label>
                 <label>
-                  Previous crop: pest-host groups
+                  Most recent historical crop: pest-host groups
                   <input
                     type="text"
                     value={previousPestGroups}

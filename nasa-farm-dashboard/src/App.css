@@ -1027,16 +1027,23 @@
 }
 
 .agronomy-form input:not([type='checkbox']),
-.agronomy-form select {
+.agronomy-form select,
+.agronomy-form textarea {
   width: 100%;
   min-width: 0;
-  height: 44px;
+  min-height: 44px;
   padding: 0 11px;
   border: 1px solid #d6dacd;
   border-radius: 7px;
   background: #fffef9;
   color: var(--forest);
   font-size: 14px;
+}
+
+.agronomy-form textarea {
+  padding: 10px 11px;
+  resize: vertical;
+  line-height: 1.45;
 }
 
 .agronomy-date-fields,

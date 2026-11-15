@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+import shutil
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from math import isfinite
@@ -28,9 +32,24 @@ from scripts.hls_ndvi import (
 from scripts.smap_data import SmapDataError, get_smap_data
 
 
-app = FastAPI()
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
+HLS_DATA_DIRECTORY = Path(
+    os.environ.get("HLS_DATA_DIR", str(PROJECT_ROOT / "hls-data"))
+)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def api_lifespan(_: FastAPI) -> AsyncIterator[None]:
+    yield
+    if os.environ.get("HLS_DATA_CLEANUP_BY_LAUNCHER") != "1":
+        if HLS_DATA_DIRECTORY.exists():
+            logger.info("Removing temporary HLS data directory %s", HLS_DATA_DIRECTORY)
+            shutil.rmtree(HLS_DATA_DIRECTORY)
+
+
+app = FastAPI(lifespan=api_lifespan)
 
 cors_origins = [
     origin.strip()
@@ -121,7 +140,7 @@ def calculate_ndvi(request: NdviRequest) -> dict[str, object]:
             bounding_box,
             start.isoformat(),
             end.isoformat(),
-            PROJECT_ROOT / "hls-data",
+            HLS_DATA_DIRECTORY,
             field_geometry=request.geometry,
         )
     except (ValueError, OSError) as exc:
