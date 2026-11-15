@@ -3,7 +3,7 @@ import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: "/TheChuddies/",
+  base: process.env.VERCEL === '1' ? '/' : '/TheChuddies/',
   plugins: [react()],
   server: {
     proxy: {
