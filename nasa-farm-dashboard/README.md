@@ -24,12 +24,20 @@ computer downloads data as needed. For a shared deployed website, host the API
 on a server and configure Earthdata credentials as server-side secrets; never
 put them in frontend code or the repository.
 
-The map area slider sets the square's area in acres. NASA POWER provides a
-30-day daily summary of maximum/minimum temperature, precipitation, relative
-humidity, and solar energy for the selected center point, ending seven days
-before today to account for data latency. POWER uses source-native spatial
-resolutions, so these climate values are regional context rather than
-field-scale measurements; the app does not bilinearly interpolate them across
-the field. POWER data is public and does not require Earthdata credentials.
+The map opens at 43.095796, -80.047. Search, enter coordinates, or click the
+map to choose a location, then draw an editable polygon around the field. The
+displayed area is calculated from that polygon in acres. HLS scene searches use
+the polygon's bounding box, while NDVI pixels are masked to the actual polygon.
+The API continues to accept the legacy `bbox` request for existing clients.
+
+NASA POWER provides a 30-day daily summary of maximum/minimum temperature,
+precipitation, relative humidity, and solar energy for the confirmed field
+center, ending seven days before today to account for data latency. POWER uses
+source-native spatial resolutions, so these values are regional context rather
+than field-scale measurements; the app does not bilinearly interpolate them
+across the field. POWER data is public and does not require Earthdata credentials.
 See the [NASA POWER Daily API documentation](https://power.larc.nasa.gov/docs/services/api/temporal/daily/)
 for data and spatial-resolution details.
+
+The current data API provides HLS NDVI and NASA POWER summaries. Historical
+weather analysis and crop-yield prediction are not currently implemented.

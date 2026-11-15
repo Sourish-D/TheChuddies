@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import date, timedelta
+from math import isfinite
 from pathlib import Path
 
 import earthaccess
@@ -26,6 +27,54 @@ MAX_SIDE_KM = 5.0
 ANALYSIS_DAYS = 15
 
 
+def polygon_bounds(geometry: dict[str, object]) -> tuple[float, float, float, float]:
+    """Validate a GeoJSON Polygon and return its EPSG:4326 bounding box."""
+    if geometry.get("type") != "Polygon":
+        raise ValueError("geometry must be a GeoJSON Polygon")
+
+    coordinates = geometry.get("coordinates")
+    if not isinstance(coordinates, list) or not coordinates:
+        raise ValueError("geometry must contain at least one polygon ring")
+
+    positions: list[tuple[float, float]] = []
+    for ring in coordinates:
+        if not isinstance(ring, list) or len(ring) < 4:
+            raise ValueError("each polygon ring must contain at least four positions")
+
+        ring_positions: list[tuple[float, float]] = []
+        for position in ring:
+            if (
+                not isinstance(position, list)
+                or len(position) < 2
+                or isinstance(position[0], bool)
+                or isinstance(position[1], bool)
+                or not isinstance(position[0], (int, float))
+                or not isinstance(position[1], (int, float))
+            ):
+                raise ValueError("polygon positions must contain longitude and latitude")
+            longitude, latitude = float(position[0]), float(position[1])
+            if (
+                not isfinite(longitude)
+                or not isfinite(latitude)
+                or not -180 <= longitude <= 180
+                or not -90 <= latitude <= 90
+            ):
+                raise ValueError("polygon coordinates must be valid EPSG:4326 values")
+            ring_positions.append((longitude, latitude))
+
+        if ring_positions[0] != ring_positions[-1]:
+            raise ValueError("polygon rings must be closed")
+        positions.extend(ring_positions)
+
+    min_lon = min(longitude for longitude, _ in positions)
+    min_lat = min(latitude for _, latitude in positions)
+    max_lon = max(longitude for longitude, _ in positions)
+    max_lat = max(latitude for _, latitude in positions)
+    if min_lon == max_lon or min_lat == max_lat:
+        raise ValueError("polygon must cover an area")
+    return min_lon, min_lat, max_lon, max_lat
+
+
 def _band_file(directory: Path, band: str) -> Path:
     """Find one HLS band GeoTIFF in a downloaded granule directory."""
     matches = sorted(directory.rglob(f"*{band}.tif"))
@@ -34,26 +83,18 @@ def _band_file(directory: Path, band: str) -> Path:
     return matches[0]
 
 
-def _scene_ndvi(red_path: Path, nir_path: Path, bounding_box: tuple[float, ...]) -> float:
+def _scene_ndvi(
+    red_path: Path,
+    nir_path: Path,
+    field_geometry: dict[str, object],
+) -> float:
     """Return mean NDVI for one scene, masking nodata and invalid reflectance."""
-    min_lon, min_lat, max_lon, max_lat = bounding_box
-    field = {
-        "type": "Polygon",
-        "coordinates": [[
-            [min_lon, min_lat],
-            [max_lon, min_lat],
-            [max_lon, max_lat],
-            [min_lon, max_lat],
-            [min_lon, min_lat],
-        ]],
-    }
-
     with rasterio.open(red_path) as red_src, rasterio.open(nir_path) as nir_src:
         if red_src.crs != nir_src.crs or red_src.transform != nir_src.transform:
             raise ValueError(f"Red and NIR rasters are not aligned for {red_path.parent}")
 
         field_in_raster_crs = transform_geom(
-            "EPSG:4326", red_src.crs, field, precision=15
+            "EPSG:4326", red_src.crs, field_geometry, precision=15
         )
         red, _ = mask(red_src, [field_in_raster_crs], crop=True, filled=False)
         nir, _ = mask(nir_src, [field_in_raster_crs], crop=True, filled=False)
@@ -86,11 +127,13 @@ def average_hls_ndvi(
     end_date: str,
     download_dir: str | Path = "hls-data",
     cloud_cover: tuple[float, float] = (0, 30),
+    field_geometry: dict[str, object] | None = None,
 ) -> float:
     """Authenticate, download HLSL30 scenes, and return mean field NDVI.
 
     Args:
         bounding_box: (min_lon, min_lat, max_lon, max_lat) in EPSG:4326.
+        field_geometry: Optional GeoJSON Polygon to mask within that bounding box.
         start_date: Inclusive ISO date, such as ``"2024-06-01"``.
         end_date: Inclusive ISO date, such as ``"2024-06-30"``.
         download_dir: Directory where Earthdata granules are downloaded.
@@ -99,6 +142,19 @@ def average_hls_ndvi(
     min_lon, min_lat, max_lon, max_lat = bounding_box
     if not (-180 <= min_lon < max_lon <= 180 and -90 <= min_lat < max_lat <= 90):
         raise ValueError("bounding_box must be (min_lon, min_lat, max_lon, max_lat)")
+    if field_geometry is None:
+        field_geometry = {
+            "type": "Polygon",
+            "coordinates": [[
+                [min_lon, min_lat],
+                [max_lon, min_lat],
+                [max_lon, max_lat],
+                [min_lon, max_lat],
+                [min_lon, min_lat],
+            ]],
+        }
+    elif polygon_bounds(field_geometry) != bounding_box:
+        raise ValueError("bounding_box must match the geometry bounds")
     if start_date > end_date:
         raise ValueError("start_date must not be after end_date")
     start = date.fromisoformat(start_date)
@@ -136,7 +192,7 @@ def average_hls_ndvi(
                 _scene_ndvi(
                     bands["B04"],
                     bands["B05"],
-                    bounding_box,
+                    field_geometry,
                 )
             )
         except (FileNotFoundError, KeyError):

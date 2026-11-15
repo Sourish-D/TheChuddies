@@ -1,0 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400..700&display=swap');
+
+:root {
+  font-family: 'DM Sans', 'Helvetica Neue', sans-serif;
+  color: #263d2d;
+  background: #f4f2e8;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --cream: #f4f2e8;
+  --paper: #fbfaf4;
+  --forest: #263d2d;
+  --forest-soft: #5a6c58;
+  --grass: #557d46;
+  --sage: #e7ebdc;
+  --sage-line: #d9dece;
+  --earth: #896346;
+  --water: #5d8490;
+  --muted-ink: #6f7a68;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: var(--cream);
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  background: var(--cream);
+}
+
+body,
+button,
+input {
+  font-family: 'DM Sans', 'Helvetica Neue', sans-serif;
+}
+
+button,
+a,
+input {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--grass);
+  outline-offset: 3px;
+}
+
+::selection {
+  color: white;
+  background: var(--grass);
+}

@@ -1,5 +1,7 @@
 """Small local API for the farm dashboard's HLS NDVI analysis."""
 
+from __future__ import annotations
+
 import json
 from datetime import date, timedelta
 from functools import lru_cache
@@ -10,9 +12,9 @@ from urllib.parse import urlencode
 from urllib.request import urlopen
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from scripts.hls_ndvi import average_hls_ndvi
+from scripts.hls_ndvi import average_hls_ndvi, polygon_bounds
 
 
 app = FastAPI()
@@ -20,7 +22,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class NdviRequest(BaseModel):
-    bbox: tuple[float, float, float, float]
+    bbox: tuple[float, float, float, float] | None = None
+    geometry: dict[str, object] | None = None
+
+    @model_validator(mode="after")
+    def validate_field(self) -> NdviRequest:
+        if self.geometry is None and self.bbox is None:
+            raise ValueError("Provide either a bbox or a GeoJSON Polygon geometry.")
+        if self.geometry is not None:
+            polygon_bounds(self.geometry)
+        return self
 
 
 class PowerRequest(BaseModel):
@@ -32,11 +43,19 @@ class PowerRequest(BaseModel):
 def calculate_ndvi(request: NdviRequest) -> dict[str, float | str]:
     try:
         end = date.today()
+        bounding_box = (
+            polygon_bounds(request.geometry)
+            if request.geometry is not None
+            else request.bbox
+        )
+        if bounding_box is None:
+            raise ValueError("Provide either a bbox or a GeoJSON Polygon geometry.")
         score = average_hls_ndvi(
-            request.bbox,
+            bounding_box,
             (end - timedelta(days=14)).isoformat(),
             end.isoformat(),
             PROJECT_ROOT / "hls-data",
+            field_geometry=request.geometry,
         )
     except (ValueError, OSError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
