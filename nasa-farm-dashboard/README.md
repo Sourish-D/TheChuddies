@@ -24,6 +24,20 @@ computer downloads data as needed. For a shared deployed website, host the API
 on a server and configure Earthdata credentials as server-side secrets; never
 put them in frontend code or the repository.
 
+## GitHub Pages deployment
+
+The GitHub Actions workflow builds the frontend from this directory and
+publishes `dist/` to the `gh-pages` branch when changes are pushed to `main`.
+Configure GitHub Pages to deploy from the `gh-pages` branch and its root folder.
+The frontend is static; GitHub Pages cannot run the Python API.
+
+To enable farm data requests, deploy the Python API separately and set the
+repository Actions variable `VITE_API_BASE_URL` to its HTTPS origin (for example,
+`https://api.example.com`). Set `CORS_ORIGINS` on the API host to
+`https://sourish-d.github.io`. Keep Earthdata credentials only in the API
+host's secrets. Without the API variable, the website still deploys, and data
+requests display a configuration message instead of calling a missing endpoint.
+
 The map opens at 43.095796, -80.047. Search, enter coordinates, or click the
 map to choose a location, then draw an editable polygon around the field. The
 displayed area is calculated from that polygon in acres. HLS scene searches use

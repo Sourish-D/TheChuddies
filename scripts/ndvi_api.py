@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from math import isfinite
@@ -12,6 +13,7 @@ from urllib.parse import urlencode
 from urllib.request import urlopen
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, model_validator
 
 from scripts.hls_ndvi import average_hls_ndvi, polygon_bounds
@@ -19,6 +21,19 @@ from scripts.smap_data import SmapDataError, get_smap_data
 
 
 app = FastAPI()
+cors_origins = [
+    origin.strip()
+    for origin in os.environ.get("CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
+if cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_methods=["POST"],
+        allow_headers=["Content-Type"],
+    )
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 

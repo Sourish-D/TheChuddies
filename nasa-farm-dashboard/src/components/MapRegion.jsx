@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet-draw/dist/leaflet.draw.css'
+import { apiUrl } from '../api.js'
 import './leaflet-draw-init.js'
 import Geocoder from './Geocoder.jsx'
 
@@ -311,7 +312,7 @@ export default function MapRegion({
     onNdviError('')
     onNdviResult(null)
     try {
-      const response = await fetch('/api/ndvi', {
+      const response = await fetch(apiUrl('/api/ndvi'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ geometry: selectedGeometry ?? boundaryGeometry }),
@@ -331,7 +332,7 @@ export default function MapRegion({
     onPowerError('')
     onPowerResult(null)
     try {
-      const response = await fetch('/api/power', {
+      const response = await fetch(apiUrl('/api/power'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ latitude: lat, longitude: lon }),
@@ -351,7 +352,7 @@ export default function MapRegion({
     onSmapError('')
     onSmapResult(null)
     try {
-      const response = await fetch('/api/smap', {
+      const response = await fetch(apiUrl('/api/smap'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ latitude: lat, longitude: lon }),

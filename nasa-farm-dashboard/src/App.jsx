@@ -8,14 +8,15 @@ const routePaths = {
   how: '/how-it-works',
 }
 
-function routeFromPath(pathname) {
-  if (pathname === routePaths.optimize) return 'optimize'
-  if (pathname === routePaths.how) return 'how'
+function routeFromHash(hash) {
+  const path = hash.slice(1) || routePaths.home
+  if (path === routePaths.optimize) return 'optimize'
+  if (path === routePaths.how) return 'how'
   return 'home'
 }
 
 function App() {
-  const [route, setRoute] = useState(() => routeFromPath(window.location.pathname))
+  const [route, setRoute] = useState(() => routeFromHash(window.location.hash))
   const [coordinates, setCoordinates] = useState({ lat: 43.095796, lon: -80.047 })
   const [selectedGeometry, setSelectedGeometry] = useState(null)
   const [selectionConfirmed, setSelectionConfirmed] = useState(false)
@@ -28,16 +29,16 @@ function App() {
   const [smapError, setSmapError] = useState('')
 
   useEffect(() => {
-    const handlePopState = () => setRoute(routeFromPath(window.location.pathname))
-    window.addEventListener('popstate', handlePopState)
-    return () => window.removeEventListener('popstate', handlePopState)
+    const handleHashChange = () => setRoute(routeFromHash(window.location.hash))
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
   }, [])
 
   const navigate = (nextRoute) => (event) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
     event.preventDefault()
-    const path = routePaths[nextRoute]
-    if (window.location.pathname !== path) window.history.pushState({}, '', path)
+    const hash = `#${routePaths[nextRoute]}`
+    if (window.location.hash !== hash) window.location.hash = hash
     setRoute(nextRoute)
     window.scrollTo(0, 0)
   }
@@ -107,11 +108,11 @@ function App() {
 function SiteHeader({ navigate, compact = false }) {
   return (
     <header className={`site-header${compact ? ' site-header--compact' : ''}`}>
-      <a className="brand" href="/" onClick={navigate('home')} aria-label="chuDirt home">
+      <a className="brand" href="#/" onClick={navigate('home')} aria-label="chuDirt home">
         chu<span>Dirt</span>
       </a>
       {compact && (
-        <a className="header-link" href="/" onClick={navigate('home')}>
+        <a className="header-link" href="#/" onClick={navigate('home')}>
           <span aria-hidden="true">←</span> Back to home
         </a>
       )}
@@ -131,10 +132,10 @@ function HomePage({ navigate }) {
           <p className="hero-tagline">Intelligence beneath every field.</p>
         </div>
         <div className="hero-actions">
-          <a className="button button--primary" href="/optimize" onClick={navigate('optimize')}>
+          <a className="button button--primary" href="#/optimize" onClick={navigate('optimize')}>
             Optimize your farm <span aria-hidden="true">↗</span>
           </a>
-          <a className="button button--secondary" href="/how-it-works" onClick={navigate('how')}>
+          <a className="button button--secondary" href="#/how-it-works" onClick={navigate('how')}>
             How it works <span aria-hidden="true">→</span>
           </a>
         </div>
@@ -198,7 +199,7 @@ function ComingSoonPage({ navigate }) {
         <h1>How it works</h1>
         <p>We're growing something.</p>
         <span className="coming-soon-badge">COMING SOON</span>
-        <a className="button button--secondary" href="/" onClick={navigate('home')}>
+        <a className="button button--secondary" href="#/" onClick={navigate('home')}>
           <span aria-hidden="true">←</span> Back to home
         </a>
       </div>
