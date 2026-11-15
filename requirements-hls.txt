@@ -4,3 +4,5 @@ numpy
 rasterio
 fastapi
 uvicorn
+google-genai
+python-dotenv

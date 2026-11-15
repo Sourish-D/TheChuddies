@@ -10,7 +10,9 @@ required to access HLS data.
 from __future__ import annotations
 
 import argparse
-from datetime import date, timedelta
+import logging
+import re
+from datetime import date, datetime, timedelta
 from math import isfinite
 from pathlib import Path
 
@@ -25,6 +27,8 @@ HLSL30_SHORT_NAME = "HLSS30"
 HLSL30_LANDSAT_SHORT_NAME = "HLSL30"
 MAX_SIDE_KM = 5.0
 ANALYSIS_DAYS = 60
+MAX_TIMELINE_DAYS = 366
+logger = logging.getLogger(__name__)
 
 
 def polygon_bounds(geometry: dict[str, object]) -> tuple[float, float, float, float]:
@@ -121,15 +125,27 @@ def _scene_ndvi(
     return float(np.mean(ndvi))
 
 
-def average_hls_ndvi(
+def _scene_date(scene_name: str) -> date:
+    match = re.search(r"(?P<year>\d{4})(?P<day>\d{3})T\d{6}", scene_name)
+    if not match:
+        raise ValueError(f"Could not determine acquisition date for HLS scene {scene_name}.")
+    year = int(match.group("year"))
+    day_of_year = int(match.group("day"))
+    parsed_date = datetime.strptime(f"{year}{day_of_year:03d}", "%Y%j").date()
+    if parsed_date.year != year:
+        raise ValueError(f"Invalid acquisition date in HLS scene {scene_name}.")
+    return parsed_date
+
+
+def hls_ndvi_timeseries(
     bounding_box: tuple[float, float, float, float],
     start_date: str,
     end_date: str,
     download_dir: str | Path = "hls-data",
     cloud_cover: tuple[float, float] = (0, 30),
     field_geometry: dict[str, object] | None = None,
-) -> float:
-    """Authenticate, download HLSL30 scenes, and return mean field NDVI.
+) -> list[dict[str, str | float]]:
+    """Authenticate, download HLSL30 scenes, and return dated field NDVI means.
 
     Args:
         bounding_box: (min_lon, min_lat, max_lon, max_lat) in EPSG:4326.
@@ -159,10 +175,12 @@ def average_hls_ndvi(
         raise ValueError("start_date must not be after end_date")
     start = date.fromisoformat(start_date)
     end = date.fromisoformat(end_date)
-    if (end - start).days + 1 > ANALYSIS_DAYS:
-        raise ValueError(f"Date range cannot exceed {ANALYSIS_DAYS} days")
+    if (end - start).days + 1 > MAX_TIMELINE_DAYS:
+        raise ValueError(f"Date range cannot exceed {MAX_TIMELINE_DAYS} days")
 
+    logger.info("Starting HLS Earthdata authentication for %s to %s", start_date, end_date)
     earthaccess.login(persist=True)
+    logger.info("Searching HLS scenes for %s to %s", start_date, end_date)
     granules = earthaccess.search_data(
         short_name=HLSL30_LANDSAT_SHORT_NAME,
         bounding_box=bounding_box,
@@ -177,8 +195,10 @@ def average_hls_ndvi(
         )
 
     download_root = Path(download_dir)
+    logger.info("Found %d HLS scenes; starting download", len(granules))
     downloaded = earthaccess.download(granules, local_path=download_root)
-    scene_scores: list[float] = []
+    logger.info("Finished downloading %d HLS items", len(downloaded))
+    scene_observations: list[dict[str, str | float]] = []
     scene_bands: dict[str, dict[str, Path]] = {}
     for item in downloaded:
         item_path = Path(item)
@@ -192,19 +212,44 @@ def average_hls_ndvi(
 
     for bands in scene_bands.values():
         try:
-            scene_scores.append(
-                _scene_ndvi(
-                    bands["B04"],
-                    bands["B05"],
-                    field_geometry,
-                )
+            scene_name = bands["B04"].name.removesuffix(".B04.tif")
+            scene_observations.append(
+                {
+                    "date": _scene_date(scene_name).isoformat(),
+                    "ndvi": _scene_ndvi(
+                        bands["B04"],
+                        bands["B05"],
+                        field_geometry,
+                    ),
+                }
             )
         except (FileNotFoundError, KeyError):
             continue
 
-    if not scene_scores:
+    if not scene_observations:
         raise ValueError("No downloaded HLSL30 scene contained valid pixels for the field")
-    return float(np.mean(scene_scores))
+    return sorted(scene_observations, key=lambda observation: observation["date"])
+
+
+def average_hls_ndvi(
+    bounding_box: tuple[float, float, float, float],
+    start_date: str,
+    end_date: str,
+    download_dir: str | Path = "hls-data",
+    cloud_cover: tuple[float, float] = (0, 30),
+    field_geometry: dict[str, object] | None = None,
+) -> float:
+    """Authenticate, download HLSL30 scenes, and return mean field NDVI."""
+    observations = hls_ndvi_timeseries(
+        bounding_box,
+        start_date,
+        end_date,
+        download_dir,
+        cloud_cover,
+        field_geometry,
+    )
+    scene_ndvi = [float(observation["ndvi"]) for observation in observations]
+    return float(np.mean(scene_ndvi))
 
 
 def _parse_args() -> argparse.Namespace:

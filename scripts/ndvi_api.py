@@ -12,15 +12,26 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, model_validator
 
-from scripts.hls_ndvi import ANALYSIS_DAYS, average_hls_ndvi, polygon_bounds
+from scripts.agronomy import AgronomyAnalysisRequest, build_agronomy_payload
+from scripts.gemini_agronomy import generate_agronomy_markdown
+from scripts.hls_ndvi import (
+    ANALYSIS_DAYS,
+    MAX_TIMELINE_DAYS,
+    hls_ndvi_timeseries,
+    polygon_bounds,
+)
 from scripts.smap_data import SmapDataError, get_smap_data
 
 
 app = FastAPI()
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
+
 cors_origins = [
     origin.strip()
     for origin in os.environ.get("CORS_ORIGINS", "").split(",")
@@ -34,12 +45,12 @@ if cors_origins:
         allow_headers=["Content-Type"],
     )
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
 
 class NdviRequest(BaseModel):
     bbox: tuple[float, float, float, float] | None = None
     geometry: dict[str, object] | None = None
+    start_date: date | None = None
+    end_date: date | None = None
 
     @model_validator(mode="after")
     def validate_field(self) -> NdviRequest:
@@ -47,12 +58,32 @@ class NdviRequest(BaseModel):
             raise ValueError("Provide either a bbox or a GeoJSON Polygon geometry.")
         if self.geometry is not None:
             polygon_bounds(self.geometry)
+        if (self.start_date is None) != (self.end_date is None):
+            raise ValueError("Provide both start_date and end_date, or neither.")
+        if self.start_date is not None and self.end_date is not None:
+            if self.start_date > self.end_date:
+                raise ValueError("start_date must not be after end_date.")
+            if (self.end_date - self.start_date).days + 1 > MAX_TIMELINE_DAYS:
+                raise ValueError(f"Date range cannot exceed {MAX_TIMELINE_DAYS} days.")
         return self
 
 
 class PowerRequest(BaseModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
+    start_date: date | None = None
+    end_date: date | None = None
+
+    @model_validator(mode="after")
+    def validate_date_range(self) -> PowerRequest:
+        if (self.start_date is None) != (self.end_date is None):
+            raise ValueError("Provide both start_date and end_date, or neither.")
+        if self.start_date is not None and self.end_date is not None:
+            if self.start_date > self.end_date:
+                raise ValueError("start_date must not be after end_date.")
+            if (self.end_date - self.start_date).days > 365 * 10:
+                raise ValueError("NASA POWER date range cannot exceed 10 years.")
+        return self
 
 
 class SmapRequest(BaseModel):
@@ -60,11 +91,25 @@ class SmapRequest(BaseModel):
     longitude: float = Field(ge=-180, le=180)
 
 
+@app.post("/api/agronomy/analyze")
+def analyze_agronomy(request: AgronomyAnalysisRequest) -> dict[str, object]:
+    """Return a model-ready feature payload and grounded Gemini Markdown."""
+    payload = build_agronomy_payload(request)
+    markdown = generate_agronomy_markdown(payload)
+    return {
+        "analysis_markdown": markdown,
+        "feature_payload": payload,
+        "random_forest_features": payload["random_forest_features"],
+        "random_forest_yield_predictions": payload["random_forest_yield_predictions"],
+        "model": os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
+    }
+
+
 @app.post("/api/ndvi")
-def calculate_ndvi(request: NdviRequest) -> dict[str, float | str]:
+def calculate_ndvi(request: NdviRequest) -> dict[str, object]:
     try:
-        end = date.today()
-        start = end - timedelta(days=ANALYSIS_DAYS - 1)
+        end = request.end_date or date.today()
+        start = request.start_date or end - timedelta(days=ANALYSIS_DAYS - 1)
         bounding_box = (
             polygon_bounds(request.geometry)
             if request.geometry is not None
@@ -72,7 +117,7 @@ def calculate_ndvi(request: NdviRequest) -> dict[str, float | str]:
         )
         if bounding_box is None:
             raise ValueError("Provide either a bbox or a GeoJSON Polygon geometry.")
-        score = average_hls_ndvi(
+        observations = hls_ndvi_timeseries(
             bounding_box,
             start.isoformat(),
             end.isoformat(),
@@ -81,15 +126,20 @@ def calculate_ndvi(request: NdviRequest) -> dict[str, float | str]:
         )
     except (ValueError, OSError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {"average_ndvi": score, "start_date": start.isoformat(),
-            "end_date": end.isoformat()}
+    return {
+        "average_ndvi": sum(float(item["ndvi"]) for item in observations)
+        / len(observations),
+        "observations": observations,
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+    }
 
 
 @app.post("/api/power")
 def get_power_data(request: PowerRequest) -> dict[str, object]:
     """Fetch a recent month of daily NASA POWER agricultural climate data."""
-    end = date.today() - timedelta(days=7)
-    start = end - timedelta(days=29)
+    end = request.end_date or date.today() - timedelta(days=7)
+    start = request.start_date or end - timedelta(days=29)
     return get_power_data_cached(request.latitude, request.longitude, start, end)
 
 
@@ -191,11 +241,35 @@ def get_power_data_cached(
     def average(values: list[float]) -> float | None:
         return round(sum(values) / len(values), 2) if values else None
 
+    daily_dates = sorted({
+        observation_date
+        for parameter_values in raw_parameters.values()
+        for observation_date in parameter_values
+    })
+
+    def daily_value(parameter: str, observation_date: str) -> float | None:
+        value = raw_parameters.get(parameter, {}).get(observation_date)
+        if value is None:
+            return None
+        numeric_value = float(value)
+        if numeric_value == fill_value or not isfinite(numeric_value):
+            return None
+        return numeric_value
+
     return {
         "latitude": latitude,
         "longitude": longitude,
         "start_date": start.isoformat(),
         "end_date": end.isoformat(),
+        "daily": [
+            {
+                "date": datetime.strptime(day, "%Y%m%d").date().isoformat(),
+                "t2m_max_c": daily_value("T2M_MAX", day),
+                "t2m_min_c": daily_value("T2M_MIN", day),
+                "precipitation_mm": daily_value("PRECTOTCORR", day),
+            }
+            for day in daily_dates
+        ],
         "summary": {
             "tmax_c_avg": average(daily_high),
             "tmin_c_avg": average(daily_low),

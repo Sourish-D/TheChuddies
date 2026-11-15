@@ -59,6 +59,7 @@ export default function MapRegion({
   onPowerError,
   onSmapResult,
   onSmapError,
+  analysisPanel,
 }) {
   const [step, setStep] = useState(() => (selectionConfirmed ? 3 : 1))
   const [boundaryGeometry, setBoundaryGeometry] = useState(selectedGeometry)
@@ -504,6 +505,7 @@ export default function MapRegion({
                 <button className="button button--outline" onClick={fetchSmapData} disabled={loadingSmap}>
                   {loadingSmap ? 'Reading SMAP data…' : 'Get soil moisture'}
                 </button>
+                {analysisPanel}
               </div>
             )}
           </div>

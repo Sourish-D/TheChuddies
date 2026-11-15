@@ -1,5 +1,6 @@
 import './App.css'
 import { useEffect, useState } from 'react'
+import AgronomyAnalysis from './components/AgronomyAnalysis.jsx'
 import MapRegion from './components/MapRegion.jsx'
 
 const routePaths = {
@@ -76,6 +77,7 @@ function App() {
       {route === 'optimize' && (
         <FarmPage
           coordinates={coordinates}
+          selectedGeometry={selectedGeometry}
           onCoordinatesChange={updateCoordinates}
           selectedGeometry={selectedGeometry}
           selectionConfirmed={selectionConfirmed}
@@ -209,8 +211,8 @@ function ComingSoonPage({ navigate }) {
 
 function FarmPage({
   coordinates,
-  onCoordinatesChange,
   selectedGeometry,
+  onCoordinatesChange,
   selectionConfirmed,
   fieldAreaAcres,
   onSelectionConfirm,
@@ -245,6 +247,9 @@ function FarmPage({
         onPowerError={setPowerError}
         onSmapResult={setSmapResult}
         onSmapError={setSmapError}
+        analysisPanel={selectionConfirmed && (
+          <AgronomyAnalysis coordinates={coordinates} geometry={selectedGeometry} />
+        )}
       />
       {(ndviResult || ndviError || powerResult || powerError || smapResult || smapError) && (
         <section className="results-section" aria-label="Field data results">

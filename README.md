@@ -14,6 +14,20 @@ npm run auth
 npm run dev
 ```
 
+The frontend now includes a Gemini season-analysis panel after you confirm a
+field. It fetches NASA POWER and Landsat/HLS observations for the selected date
+range and the same dates in the previous year, then sends the aggregated data
+and crop details to the backend for grounded Markdown analysis. Optional SMAP
+data requires Earthdata login. No Random Forest model is included; any yield
+estimate must come from an external model.
+
+For local use, add `GEMINI_API_KEY=your-key` to the repository-root `.env`.
+The backend reads this ignored file on startup; the frontend never receives
+the key. Restart `npm run dev` after editing it. Never paste the key into the
+React app or commit it. For deployment, configure it as a secret on the API
+server. `VITE_API_BASE_URL` only points the browser to the API and must never
+contain a Gemini key.
+
 `npm run setup` creates a Python virtual environment and installs the backend
 dependencies. `npm run auth` signs in to NASA Earthdata once and saves the
 credentials locally in your home directory (`.netrc`, or `_netrc` on Windows).
@@ -37,5 +51,12 @@ selected boundary.
 The [NASA POWER Daily API](https://power.larc.nasa.gov/docs/services/api/temporal/daily/)
 is public and does not require Earthdata credentials.
 
-The current data API provides HLS NDVI and NASA POWER summaries. Historical
-weather analysis and crop-yield prediction are not currently implemented.
+The backend returns dated NASA POWER weather records and dated HLS scene NDVI
+averages for seasonal comparisons, along with current NASA SMAP soil-moisture
+context. `POST /api/agronomy/analyze` assembles season features (including GDD
+and precipitation anomalies) and returns grounded Gemini Markdown for the
+React client. Configure `GEMINI_API_KEY` on the API server to enable it.
+
+The repository does not include a Random Forest model or yield-training dataset.
+Yield predictions can be included in the analysis payload if supplied by an
+external model; the backend does not create estimates.

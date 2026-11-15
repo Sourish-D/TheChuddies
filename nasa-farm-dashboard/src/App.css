@@ -983,6 +983,191 @@
   }
 }
 
+.site-shell--optimize .agronomy-analysis {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--sage-line);
+}
+
+.agronomy-analysis-heading h3 {
+  margin: 5px 0 6px;
+  color: var(--forest);
+  font-size: 21px;
+  letter-spacing: -0.045em;
+}
+
+.agronomy-analysis-heading p,
+.agronomy-details > p,
+.agronomy-note {
+  margin: 0;
+  color: var(--forest-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.agronomy-form {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.agronomy-form > label,
+.agronomy-date-fields > label,
+.agronomy-trait-fields > label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--forest-soft);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.agronomy-form input:not([type='checkbox']),
+.agronomy-form select {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 0 11px;
+  border: 1px solid #d6dacd;
+  border-radius: 7px;
+  background: #fffef9;
+  color: var(--forest);
+  font-size: 14px;
+}
+
+.agronomy-date-fields,
+.agronomy-trait-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+}
+
+.agronomy-details {
+  padding: 12px;
+  border: 1px solid var(--sage-line);
+  border-radius: 9px;
+  background: rgba(231, 235, 220, 0.45);
+}
+
+.agronomy-details summary {
+  color: var(--forest);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.agronomy-details > p {
+  margin-top: 9px;
+}
+
+.agronomy-details > .agronomy-trait-fields,
+.agronomy-details > .agronomy-date-fields,
+.agronomy-details > .agronomy-checkbox {
+  margin-top: 13px;
+}
+
+.agronomy-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--forest-soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.agronomy-checkbox input {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  margin: 1px 0 0;
+  accent-color: var(--grass);
+}
+
+.site-shell--optimize .agronomy-submit {
+  min-height: 48px;
+  margin-top: 0;
+  font-size: 14px;
+}
+
+.agronomy-note {
+  font-size: 11px;
+}
+
+.agronomy-progress {
+  margin: 0;
+  color: var(--forest);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.agronomy-result {
+  padding: 15px;
+  border: 1px solid var(--sage-line);
+  border-radius: 10px;
+  background: #fffef9;
+}
+
+.agronomy-result-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted-ink);
+  font-size: 11px;
+}
+
+.agronomy-markdown h3 {
+  margin: 18px 0 7px;
+  color: var(--forest);
+  font-size: 16px;
+}
+
+.agronomy-markdown p,
+.agronomy-markdown li {
+  color: var(--forest-soft);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.agronomy-markdown p {
+  margin: 7px 0;
+}
+
+.agronomy-markdown ul {
+  margin: 7px 0;
+  padding-left: 20px;
+}
+
+.agronomy-markdown li + li {
+  margin-top: 5px;
+}
+
+.agronomy-payload {
+  margin-top: 13px;
+}
+
+.agronomy-payload pre {
+  max-height: 240px;
+  margin: 12px 0 0;
+  overflow: auto;
+  color: var(--forest-soft);
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 480px) {
+  .site-shell--optimize .agronomy-date-fields,
+  .site-shell--optimize .agronomy-trait-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
