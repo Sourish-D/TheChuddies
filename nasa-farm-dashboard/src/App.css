@@ -1128,30 +1128,170 @@
   font-size: 11px;
 }
 
-.agronomy-markdown h3 {
-  margin: 18px 0 7px;
+.agronomy-story {
+  margin-top: 16px;
+}
+
+.agronomy-story-topline,
+.agronomy-story-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.agronomy-story-topline {
+  color: var(--muted-ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.agronomy-story-topline span:last-child {
+  font-variant-numeric: tabular-nums;
+}
+
+.agronomy-story-progress {
+  height: 4px;
+  margin: 9px 0 13px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7e9df;
+}
+
+.agronomy-story-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--grass);
+  transition: width 300ms ease;
+}
+
+.agronomy-story-card {
+  min-height: 230px;
+  padding: clamp(18px, 5vw, 26px);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  animation: agronomy-story-enter 300ms ease both;
+}
+
+.agronomy-story-card--0 {
+  border-color: #d8e2c6;
+  background: #eef2e5;
+}
+
+.agronomy-story-card--1 {
+  border-color: #eadfbd;
+  background: #f7f0dd;
+}
+
+.agronomy-story-card--2 {
+  border-color: #d5e0d7;
+  background: #eaf1eb;
+}
+
+.agronomy-story-card--3 {
+  border-color: #d7dce8;
+  background: #edf0f6;
+}
+
+.agronomy-story-card--4 {
+  border-color: #e5d7cb;
+  background: #f4ece5;
+}
+
+.agronomy-story-index {
+  color: var(--muted-ink);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.agronomy-story-card h4 {
+  margin: 11px 0 14px;
   color: var(--forest);
-  font-size: 16px;
+  font-size: clamp(22px, 5vw, 28px);
+  letter-spacing: -0.045em;
+  line-height: 1.1;
 }
 
-.agronomy-markdown p,
-.agronomy-markdown li {
+.agronomy-story-points {
+  display: grid;
+  gap: 9px;
+}
+
+.agronomy-story-points p {
+  position: relative;
+  margin: 0;
+  padding-left: 17px;
   color: var(--forest-soft);
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
-.agronomy-markdown p {
-  margin: 7px 0;
+.agronomy-story-points p::before {
+  position: absolute;
+  top: 0.55em;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--grass);
+  content: '';
 }
 
-.agronomy-markdown ul {
-  margin: 7px 0;
-  padding-left: 20px;
+.agronomy-story-navigation {
+  min-height: 42px;
+  margin-top: 9px;
 }
 
-.agronomy-markdown li + li {
-  margin-top: 5px;
+.agronomy-story-arrow,
+.agronomy-story-dots button {
+  border: 0;
+  background: transparent;
+  color: var(--forest);
+  cursor: pointer;
+}
+
+.agronomy-story-arrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 5px 2px;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.agronomy-story-arrow:disabled {
+  color: #a7aa9e;
+  cursor: default;
+}
+
+.agronomy-story-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.agronomy-story-dots button {
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border-radius: 50%;
+  background: #c8cbbb;
+}
+
+.agronomy-story-dots button.is-active {
+  width: 22px;
+  border-radius: 999px;
+  background: var(--grass);
+}
+
+.agronomy-story-arrow:focus-visible,
+.agronomy-story-dots button:focus-visible {
+  outline: 2px solid var(--grass);
+  outline-offset: 3px;
 }
 
 .agronomy-payload {
@@ -1172,6 +1312,32 @@
   .site-shell--optimize .agronomy-date-fields,
   .site-shell--optimize .agronomy-trait-fields {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .agronomy-story-card {
+    min-height: 250px;
+  }
+}
+
+@keyframes agronomy-story-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agronomy-story-card {
+    animation: none;
+  }
+
+  .agronomy-story-progress span {
+    transition: none;
   }
 }
 

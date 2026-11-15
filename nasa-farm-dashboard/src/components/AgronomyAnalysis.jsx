@@ -93,67 +93,29 @@ async function postJson(path, body) {
   }
 }
 
-function renderInline(text) {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={index}>{part.slice(2, -2)}</strong>
-    }
-    return part
-  })
-}
-
-function MarkdownContent({ markdown }) {
-  const blocks = []
-  let listItems = []
-  let paragraph = []
-  const flushList = () => {
-    if (listItems.length) {
-      blocks.push({ type: 'list', content: listItems })
-      listItems = []
-    }
-  }
-  const flushParagraph = () => {
-    if (paragraph.length) {
-      blocks.push({ type: 'paragraph', content: paragraph.join(' ') })
-      paragraph = []
-    }
-  }
-
-  markdown.split('\n').forEach((line) => {
+function parseAnalysisSlides(markdown) {
+  const slides = []
+  for (const line of markdown.split('\n')) {
     const trimmed = line.trim()
-    if (!trimmed) {
-      flushList()
-      flushParagraph()
-    } else if (/^#{1,3} /.test(trimmed)) {
-      flushList()
-      flushParagraph()
-      blocks.push({ type: 'heading', content: trimmed.replace(/^#{1,3} /, '') })
-    } else if (trimmed.startsWith('- ')) {
-      flushParagraph()
-      listItems.push(trimmed.slice(2))
-    } else {
-      flushList()
-      paragraph.push(trimmed)
+    if (!trimmed) continue
+    const heading = trimmed.match(/^#{1,3}\s+(.+?)\s*#*$/)
+    if (heading) {
+      slides.push({ title: heading[1].replace(/[*_`]/g, '').trim(), points: [] })
+      continue
     }
-  })
-  flushList()
-  flushParagraph()
 
-  return (
-    <div className="agronomy-markdown">
-      {blocks.map((block, index) => {
-        if (block.type === 'heading') return <h3 key={index}>{renderInline(block.content)}</h3>
-        if (block.type === 'list') {
-          return (
-            <ul key={index}>
-              {block.content.map((item, itemIndex) => <li key={itemIndex}>{renderInline(item)}</li>)}
-            </ul>
-          )
-        }
-        return <p key={index}>{renderInline(block.content)}</p>
-      })}
-    </div>
-  )
+    const text = trimmed
+      .replace(/^(?:[-*+]|\d+[.)])\s+/, '')
+      .replace(/\*\*|__|[*_`~]/g, '')
+      .trim()
+    if (!text) continue
+    if (!slides.length) slides.push({ title: 'Field insight', points: [] })
+    slides[slides.length - 1].points.push(text)
+  }
+  return slides.filter((slide) => slide.points.length).map((slide) => ({
+    ...slide,
+    points: slide.points.slice(0, 2),
+  }))
 }
 
 export default function AgronomyAnalysis({ coordinates, geometry }) {
@@ -182,11 +144,14 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
   const [progress, setProgress] = useState('')
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  const [activeSlide, setActiveSlide] = useState(0)
+  const analysisSlides = result ? parseAnalysisSlides(result.analysis_markdown) : []
 
   const runAnalysis = async (event) => {
     event.preventDefault()
     setError('')
     setResult(null)
+    setActiveSlide(0)
     if (!geometry) {
       setError('Confirm a field boundary before requesting agronomy analysis.')
       return
@@ -494,7 +459,72 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
             <span className="result-label">Gemini analysis</span>
             <span>{result.model}</span>
           </div>
-          <MarkdownContent markdown={result.analysis_markdown} />
+          {analysisSlides.length > 0 && (
+            <div className="agronomy-story">
+              <div className="agronomy-story-topline">
+                <span>Your field, in a few quick takeaways</span>
+                <span>{String(activeSlide + 1).padStart(2, '0')} / {String(analysisSlides.length).padStart(2, '0')}</span>
+              </div>
+              <div
+                className="agronomy-story-progress"
+                role="progressbar"
+                aria-label="Walkthrough progress"
+                aria-valuemin={1}
+                aria-valuemax={analysisSlides.length}
+                aria-valuenow={activeSlide + 1}
+              >
+                <span style={{ width: `${((activeSlide + 1) / analysisSlides.length) * 100}%` }} />
+              </div>
+              <article
+                className={`agronomy-story-card agronomy-story-card--${activeSlide % 5}`}
+                key={activeSlide}
+                aria-label={`${activeSlide + 1} of ${analysisSlides.length}: ${analysisSlides[activeSlide].title}`}
+                aria-roledescription="slide"
+              >
+                <span className="agronomy-story-index">
+                  FIELD NOTE {String(activeSlide + 1).padStart(2, '0')}
+                </span>
+                <h4>{analysisSlides[activeSlide].title}</h4>
+                <div className="agronomy-story-points">
+                  {analysisSlides[activeSlide].points.map((point, index) => (
+                    <p key={`${activeSlide}-${index}`}>{point}</p>
+                  ))}
+                </div>
+              </article>
+              <div className="agronomy-story-navigation">
+                <button
+                  type="button"
+                  className="agronomy-story-arrow"
+                  onClick={() => setActiveSlide((index) => Math.max(0, index - 1))}
+                  disabled={activeSlide === 0}
+                  aria-label="Previous takeaway"
+                >
+                  ← <span>Back</span>
+                </button>
+                <div className="agronomy-story-dots" aria-label="Choose a takeaway">
+                  {analysisSlides.map((slide, index) => (
+                    <button
+                      type="button"
+                      key={slide.title}
+                      className={index === activeSlide ? 'is-active' : ''}
+                      onClick={() => setActiveSlide(index)}
+                      aria-label={`Go to takeaway ${index + 1}: ${slide.title}`}
+                      aria-current={index === activeSlide ? 'step' : undefined}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="agronomy-story-arrow"
+                  onClick={() => setActiveSlide((index) => Math.min(analysisSlides.length - 1, index + 1))}
+                  disabled={activeSlide === analysisSlides.length - 1}
+                  aria-label="Next takeaway"
+                >
+                  <span>Next</span> →
+                </button>
+              </div>
+            </div>
+          )}
           <details className="agronomy-details agronomy-payload">
             <summary>View calculated data sent for analysis</summary>
             <pre>{JSON.stringify(result.random_forest_features, null, 2)}</pre>

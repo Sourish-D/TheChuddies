@@ -114,13 +114,13 @@ class SmapRequest(BaseModel):
 def analyze_agronomy(request: AgronomyAnalysisRequest) -> dict[str, object]:
     """Return a model-ready feature payload and grounded Gemini Markdown."""
     payload = build_agronomy_payload(request)
-    markdown = generate_agronomy_markdown(payload)
+    markdown, model = generate_agronomy_markdown(payload)
     return {
         "analysis_markdown": markdown,
         "feature_payload": payload,
         "random_forest_features": payload["random_forest_features"],
         "random_forest_yield_predictions": payload["random_forest_yield_predictions"],
-        "model": os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
+        "model": model,
     }
 
 

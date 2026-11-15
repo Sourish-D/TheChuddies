@@ -30,12 +30,14 @@ To use agronomy analysis locally, add your key to the repository-root `.env`:
 
 ```dotenv
 GEMINI_API_KEY=your-key
-# GEMINI_MODEL=gemini-3.8-flash
+# GEMINI_MODEL=gemini-3.6-flash
 ```
 
 The API loads that file when it starts; `.env` is ignored by Git and is not
 loaded into the browser. `GEMINI_MODEL` is optional and defaults to
-`gemini-3.8-flash`. Restart `npm run dev` after changing the file.
+`gemini-3.6-flash`. The API retries transient errors up to two times; an
+optional `GEMINI_FALLBACK_MODEL` can be set if you want another model tried
+after it. Restart `npm run dev` after changing the file.
 
 ## GitHub Pages deployment
 
@@ -106,8 +108,11 @@ ideally with one year per line (for example `2023: corn`, `2024: soybeans`,
 or local soil and management details, recommendations remain conditional. This
 repository does not include a Random Forest model or yield-training dataset:
 the API accepts externally generated predictions but does not generate them.
-Temporary Gemini 429/5xx service failures are retried up to two times with
-short backoff delays; persistent failures are returned to the frontend.
+Temporary Gemini 429/5xx service failures are retried up to two times.
+SDK-internal retries are disabled and each attempt has a 45-second timeout,
+so persistent provider failures return to the frontend instead of leaving the
+request pending for several minutes. Analysis is limited to five concise
+walkthrough cards with plain-text bullets.
 
 The season records accept the daily field names returned by `/api/power` and
 the `{date, ndvi}` observations returned by `/api/ndvi`. For example:

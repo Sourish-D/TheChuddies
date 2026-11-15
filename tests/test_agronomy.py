@@ -19,6 +19,7 @@ from scripts.agronomy import (
 )
 from scripts.gemini_agronomy import (
     AGRONOMY_SYSTEM_INSTRUCTION,
+    GEMINI_REQUEST_TIMEOUT_MS,
     generate_agronomy_markdown,
 )
 from scripts.hls_ndvi import _scene_date
@@ -136,7 +137,7 @@ class AgronomyFeatureTests(unittest.TestCase):
         client = TestClient(app)
         with patch(
             "scripts.ndvi_api.generate_agronomy_markdown",
-            return_value="## Field summary\nGrounded results.",
+            return_value=("## Field summary\nGrounded results.", "gemini-3.6-flash"),
         ):
             response = client.post(
                 "/api/agronomy/analyze",
@@ -146,6 +147,7 @@ class AgronomyFeatureTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertEqual(body["analysis_markdown"], "## Field summary\nGrounded results.")
+        self.assertEqual(body["model"], "gemini-3.6-flash")
         self.assertEqual(body["feature_payload"], payload)
         self.assertEqual(body["random_forest_features"], payload["random_forest_features"])
 
@@ -171,30 +173,38 @@ class AgronomyFeatureTests(unittest.TestCase):
                 return Response()
 
         fake_models = FakeModels()
+        client_options = []
 
         class FakeClient:
             models = fake_models
 
-            def __init__(self, *, api_key: str) -> None:
+            def __init__(self, *, api_key: str, http_options) -> None:
                 self.api_key = api_key
+                client_options.append(http_options)
 
         with (
             patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}, clear=True),
             patch("scripts.gemini_agronomy.genai.Client", FakeClient),
         ):
-            markdown = generate_agronomy_markdown({"year_over_year": {"ndvi": None}})
+            markdown, model = generate_agronomy_markdown({"year_over_year": {"ndvi": None}})
 
         self.assertIn("Provided values only", markdown)
+        self.assertEqual(model, "gemini-3.6-flash")
+        self.assertEqual(len(client_options), 1)
+        self.assertEqual(client_options[0].timeout, GEMINI_REQUEST_TIMEOUT_MS)
+        self.assertEqual(client_options[0].retry_options.attempts, 1)
         kwargs = fake_models.kwargs
         self.assertIsNotNone(kwargs)
         assert kwargs is not None
         system_instruction = getattr(kwargs["config"], "system_instruction")
         self.assertIn("Farm-specific measurements", system_instruction)
         self.assertIn("general agronomic knowledge", system_instruction)
-        self.assertIn("2–4 ranked, practical", system_instruction)
+        self.assertIn("animated 5-card frontend walkthrough", system_instruction)
+        self.assertIn("under 180 words", system_instruction)
+        self.assertIn("No bold, italics", system_instruction)
         self.assertIn("corn is not a nitrogen-fixing crop", system_instruction)
         self.assertIn("crop rotation", AGRONOMY_SYSTEM_INSTRUCTION.lower())
-        self.assertEqual(kwargs["model"], "gemini-3.8-flash")
+        self.assertEqual(kwargs["model"], "gemini-3.6-flash")
         contents = kwargs["contents"]
         self.assertIsInstance(contents, str)
         if not isinstance(contents, str):
@@ -213,7 +223,7 @@ class AgronomyFeatureTests(unittest.TestCase):
         class FakeClient:
             models = FakeModels()
 
-            def __init__(self, *, api_key: str) -> None:
+            def __init__(self, *, api_key: str, http_options) -> None:
                 self.api_key = api_key
 
         with (
@@ -227,20 +237,20 @@ class AgronomyFeatureTests(unittest.TestCase):
         self.assertEqual(raised.exception.status_code, 502)
         self.assertIn("temporarily unavailable", raised.exception.detail)
 
-    def test_gemini_retries_temporary_unavailability(self) -> None:
+    def test_gemini_retries_with_gemini_36_by_default(self) -> None:
         class FakeModels:
-            attempts = 0
+            attempted_models: list[str] = []
 
             def generate_content(self, **kwargs):
-                self.attempts += 1
-                if self.attempts < 3:
+                self.attempted_models.append(kwargs["model"])
+                if len(self.attempted_models) == 1:
                     raise APIError(
                         code=503,
                         response_json={"error": {"message": "temporarily unavailable"}},
                     )
 
                 class Response:
-                    text = "## Recommended next steps\nTry again later."
+                    text = "## Next best moves\nAnalysis completed."
 
                 return Response()
 
@@ -249,7 +259,7 @@ class AgronomyFeatureTests(unittest.TestCase):
         class FakeClient:
             models = fake_models
 
-            def __init__(self, *, api_key: str) -> None:
+            def __init__(self, *, api_key: str, http_options) -> None:
                 self.api_key = api_key
 
         with (
@@ -257,11 +267,15 @@ class AgronomyFeatureTests(unittest.TestCase):
             patch("scripts.gemini_agronomy.genai.Client", FakeClient),
             patch("scripts.gemini_agronomy.time.sleep") as sleep,
         ):
-            markdown = generate_agronomy_markdown({"seasons": []})
+            markdown, model = generate_agronomy_markdown({"seasons": []})
 
-        self.assertIn("Try again later", markdown)
-        self.assertEqual(fake_models.attempts, 3)
-        self.assertEqual([call.args[0] for call in sleep.call_args_list], [1, 2])
+        self.assertIn("Analysis completed", markdown)
+        self.assertEqual(model, "gemini-3.6-flash")
+        self.assertEqual(
+            fake_models.attempted_models,
+            ["gemini-3.6-flash", "gemini-3.6-flash"],
+        )
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [1])
 
 
 class AgronomyRequestValidationTests(unittest.TestCase):
