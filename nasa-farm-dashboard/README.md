@@ -39,5 +39,14 @@ across the field. POWER data is public and does not require Earthdata credential
 See the [NASA POWER Daily API documentation](https://power.larc.nasa.gov/docs/services/api/temporal/daily/)
 for data and spatial-resolution details.
 
-The current data API provides HLS NDVI and NASA POWER summaries. Historical
-weather analysis and crop-yield prediction are not currently implemented.
+NASA SMAP provides the latest available 3-hourly surface (0–5 cm) and root-zone
+(0–100 cm) soil-moisture estimates from the SPL4SMGP Version 8 product. The API
+reads the grid cell nearest the confirmed field center from NASA's protected
+HDF5 granule using ranged reads; it does not download the full global file.
+SMAP is an assimilated/model product on an approximately 9 km grid, so values
+are regional context rather than field-scale measurements. SMAP requires the
+same Earthdata Login setup as HLS. See the [NASA NSIDC SMAP L4 product page](https://nsidc.org/data/spl4smgp/versions/8).
+
+The current data API provides HLS NDVI, NASA POWER summaries, and NASA SMAP
+soil-moisture estimates. Historical weather analysis and crop-yield prediction
+are not currently implemented.

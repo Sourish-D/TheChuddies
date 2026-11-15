@@ -56,6 +56,8 @@ export default function MapRegion({
   onNdviError,
   onPowerResult,
   onPowerError,
+  onSmapResult,
+  onSmapError,
 }) {
   const [step, setStep] = useState(() => (selectionConfirmed ? 3 : 1))
   const [boundaryGeometry, setBoundaryGeometry] = useState(selectedGeometry)
@@ -68,6 +70,7 @@ export default function MapRegion({
   const [moveMode, setMoveMode] = useState(false)
   const [loadingNdvi, setLoadingNdvi] = useState(false)
   const [loadingPower, setLoadingPower] = useState(false)
+  const [loadingSmap, setLoadingSmap] = useState(false)
   const [mapError, setMapError] = useState('')
 
   const mapContainerRef = useRef(null)
@@ -343,6 +346,26 @@ export default function MapRegion({
     }
   }
 
+  const fetchSmapData = async () => {
+    setLoadingSmap(true)
+    onSmapError('')
+    onSmapResult(null)
+    try {
+      const response = await fetch('/api/smap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ latitude: lat, longitude: lon }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.detail || 'NASA SMAP request failed.')
+      onSmapResult(data)
+    } catch (error) {
+      onSmapError(error instanceof Error ? error.message : 'NASA SMAP request failed.')
+    } finally {
+      setLoadingSmap(false)
+    }
+  }
+
   const handleCoordinatesChange = (nextCoordinates) => {
     onCoordinatesChange(nextCoordinates)
     setMapError('')
@@ -465,12 +488,15 @@ export default function MapRegion({
             </div>
             {selectionConfirmed && (
               <div className="data-actions">
-                <p>Use your confirmed field for available satellite and climate data.</p>
+                <p>Use your confirmed field for available satellite, climate, and soil data.</p>
                 <button className="button button--primary" onClick={calculateNdvi} disabled={loadingNdvi}>
                   {loadingNdvi ? 'Reading satellite data…' : 'Calculate field NDVI'}
                 </button>
                 <button className="button button--outline" onClick={fetchPowerData} disabled={loadingPower}>
                   {loadingPower ? 'Loading climate…' : 'Get climate data'}
+                </button>
+                <button className="button button--outline" onClick={fetchSmapData} disabled={loadingSmap}>
+                  {loadingSmap ? 'Reading SMAP data…' : 'Get soil moisture'}
                 </button>
               </div>
             )}

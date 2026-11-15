@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from math import isfinite
 from pathlib import Path
@@ -15,6 +15,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
 from scripts.hls_ndvi import average_hls_ndvi, polygon_bounds
+from scripts.smap_data import SmapDataError, get_smap_data
 
 
 app = FastAPI()
@@ -35,6 +36,11 @@ class NdviRequest(BaseModel):
 
 
 class PowerRequest(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class SmapRequest(BaseModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
 
@@ -69,6 +75,37 @@ def get_power_data(request: PowerRequest) -> dict[str, object]:
     end = date.today() - timedelta(days=7)
     start = end - timedelta(days=29)
     return get_power_data_cached(request.latitude, request.longitude, start, end)
+
+
+@app.post("/api/smap")
+def get_smap_soil_moisture(request: SmapRequest) -> dict[str, object]:
+    """Fetch the latest available NASA SMAP soil-moisture estimate."""
+    try:
+        now = datetime.now(timezone.utc)
+        cache_bucket = now.replace(
+            hour=(now.hour // 3) * 3,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        return get_smap_data_cached(
+            request.latitude,
+            request.longitude,
+            cache_bucket,
+        )
+    except SmapDataError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@lru_cache(maxsize=256)
+def get_smap_data_cached(
+    latitude: float,
+    longitude: float,
+    cache_bucket: datetime,
+) -> dict[str, object]:
+    if cache_bucket.tzinfo is None:
+        raise ValueError("SMAP cache bucket must be timezone-aware.")
+    return get_smap_data(latitude, longitude)
 
 
 @lru_cache(maxsize=256)
