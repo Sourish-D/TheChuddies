@@ -69,7 +69,7 @@ function App() {
   }
 
   return (
-    <div className="site-shell">
+    <div className={`site-shell${route === 'optimize' ? ' site-shell--optimize' : ''}`}>
       <SiteHeader navigate={navigate} compact={route === 'optimize'} />
       {route === 'home' && <HomePage navigate={navigate} />}
       {route === 'how' && <ComingSoonPage navigate={navigate} />}
@@ -230,13 +230,6 @@ function FarmPage({
 }) {
   return (
     <main className="page-transition farm-page">
-      <div className="farm-heading">
-        <div>
-          <span className="section-kicker">NASA EARTH OBSERVATION · FIELD INTELLIGENCE</span>
-          <h1>Optimize your farm</h1>
-        </div>
-        <p>Mark your field on the map. We’ll use its boundary to look up available satellite and climate data.</p>
-      </div>
       <MapRegion
         lat={coordinates.lat}
         lon={coordinates.lon}
