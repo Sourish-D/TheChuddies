@@ -14,7 +14,7 @@ from math import isfinite
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -216,11 +216,36 @@ def get_power_data_cached(
     url = f"https://power.larc.nasa.gov/api/temporal/daily/point?{query}"
 
     try:
-        with urlopen(url, timeout=30) as response:
+        request = Request(
+            url,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "DirtDoc/1.0 (NASA POWER climate data client)",
+            },
+        )
+        with urlopen(request, timeout=30) as response:
             payload = json.load(response)
     except HTTPError as exc:
+        response_body = exc.read(4096).decode("utf-8", errors="replace")
+        message = f"NASA POWER returned HTTP {exc.code}."
+        try:
+            error_payload = json.loads(response_body)
+        except json.JSONDecodeError:
+            if response_body.strip():
+                message = f"{message} {response_body.strip()[:500]}"
+        else:
+            details = [
+                str(error_payload[key]).strip()
+                for key in ("header", "message")
+                if isinstance(error_payload, dict) and error_payload.get(key)
+            ]
+            if details:
+                message = f"{message} {' '.join(details)}"
+        if exc.code == 429:
+            logger.warning("NASA POWER is rate-limiting requests: %s", message)
         raise HTTPException(
-            status_code=502, detail=f"NASA POWER returned HTTP {exc.code}."
+            status_code=503 if exc.code == 429 else 502,
+            detail=message,
         ) from exc
     except (URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise HTTPException(

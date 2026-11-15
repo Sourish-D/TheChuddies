@@ -77,7 +77,11 @@ async function postJson(path, body) {
       )
     }
     if (!response.ok) {
-      throw new Error(data.detail || `The data API request failed (HTTP ${response.status}).`)
+      const requestError = new Error(
+        data.detail || `The data API request failed (HTTP ${response.status}).`,
+      )
+      requestError.status = response.status
+      throw requestError
     }
     return data
   } catch (error) {
@@ -112,13 +116,21 @@ function parseAnalysisSlides(markdown) {
     if (!slides.length) slides.push({ title: 'Field insight', points: [] })
     slides[slides.length - 1].points.push(text)
   }
-  return slides.filter((slide) => slide.points.length).map((slide) => ({
-    ...slide,
-    points: slide.points.slice(0, 2),
-  }))
+  return slides.filter((slide) => slide.points.length).map((slide) => {
+    const pointLimit = slide.title.toLowerCase() === 'rotation ideas' ? 3 : 2
+    return { ...slide, points: slide.points.slice(0, pointLimit) }
+  })
 }
 
-export default function AgronomyAnalysis({ coordinates, geometry }) {
+function mapInsightFor(index, slides) {
+  return {
+    index,
+    title: slides[index].title,
+    detail: slides[index].points[0],
+  }
+}
+
+export default function AgronomyAnalysis({ coordinates, geometry, onMapInsightChange }) {
   const today = new Date()
   const recentEnd = new Date(today)
   recentEnd.setDate(recentEnd.getDate() - 7)
@@ -135,14 +147,11 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
   const [previousRootDepth, setPreviousRootDepth] = useState('')
   const [currentPestGroups, setCurrentPestGroups] = useState('')
   const [previousPestGroups, setPreviousPestGroups] = useState('')
-  const [precipitationNormal, setPrecipitationNormal] = useState('')
-  const [rootzoneNormal, setRootzoneNormal] = useState('')
   const [includeSmap, setIncludeSmap] = useState(false)
-  const [yieldValue, setYieldValue] = useState('')
-  const [yieldUnits, setYieldUnits] = useState('bu/acre')
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState('')
   const [error, setError] = useState('')
+  const [dataWarning, setDataWarning] = useState('')
   const [result, setResult] = useState(null)
   const [activeSlide, setActiveSlide] = useState(0)
   const analysisSlides = result ? parseAnalysisSlides(result.analysis_markdown) : []
@@ -150,8 +159,10 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
   const runAnalysis = async (event) => {
     event.preventDefault()
     setError('')
+    setDataWarning('')
     setResult(null)
     setActiveSlide(0)
+    onMapInsightChange?.(null)
     if (!geometry) {
       setError('Confirm a field boundary before requesting agronomy analysis.')
       return
@@ -168,19 +179,6 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
       setError('The growing-season start and end dates must be in the same year.')
       return
     }
-    if (precipitationNormal && !Number.isFinite(Number(precipitationNormal))) {
-      setError('Enter a valid precipitation normal or leave it blank.')
-      return
-    }
-    if (rootzoneNormal && !Number.isFinite(Number(rootzoneNormal))) {
-      setError('Enter a valid root-zone moisture normal or leave it blank.')
-      return
-    }
-    if (yieldValue && (!Number.isFinite(Number(yieldValue)) || Number(yieldValue) < 0)) {
-      setError('Enter a valid externally generated yield prediction or leave it blank.')
-      return
-    }
-
     const currentYear = Number(startDate.slice(0, 4))
     let cropHistoryEntries
     try {
@@ -202,23 +200,44 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
         },
       ]
 
-      const observations = []
-      for (const season of seasons) {
-        setProgress(`Fetching ${season.year} NASA POWER and Landsat/HLS data…`)
-        const [power, ndvi] = await Promise.all([
-          postJson('/api/power', {
-            latitude: coordinates.lat,
-            longitude: coordinates.lon,
-            start_date: season.start_date,
-            end_date: season.end_date,
-          }),
-          postJson('/api/ndvi', {
-            geometry,
-            start_date: season.start_date,
-            end_date: season.end_date,
-          }),
-        ])
-        const weather = power.daily
+      setProgress('Fetching NASA POWER and Landsat/HLS data for both seasons…')
+      const powerPromise = postJson('/api/power', {
+        latitude: coordinates.lat,
+        longitude: coordinates.lon,
+        start_date: seasons[1].start_date,
+        end_date: seasons[0].end_date,
+      }).then(
+        (data) => ({ data }),
+        (requestError) => ({ error: requestError }),
+      )
+      const [powerOutcome, ...ndviResults] = await Promise.all([
+        powerPromise,
+        ...seasons.map((season) => postJson('/api/ndvi', {
+          geometry,
+          start_date: season.start_date,
+          end_date: season.end_date,
+        })),
+      ])
+      let power = null
+      if ('error' in powerOutcome) {
+        const powerError = powerOutcome.error
+        if (
+          powerError instanceof Error
+          && powerError.status === 503
+          && powerError.message.includes('HTTP 429')
+        ) {
+          setDataWarning(
+            'NASA POWER is temporarily rate-limiting requests. Analysis continued with satellite data only; weather-based comparisons are unavailable.',
+          )
+        } else {
+          throw powerError
+        }
+      } else {
+        power = powerOutcome.data
+      }
+      const observations = seasons.map((season, index) => {
+        const weather = (power?.daily ?? [])
+          .filter((day) => day.date >= season.start_date && day.date <= season.end_date)
           .filter((day) => (day.t2m_max_c != null && day.t2m_min_c != null)
             || day.precipitation_mm != null)
           .map((day) => ({
@@ -227,16 +246,10 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
             t2m_min_c: day.t2m_max_c != null && day.t2m_min_c != null ? day.t2m_min_c : null,
             precipitation_mm: day.precipitation_mm,
           }))
-        observations.push({ ...season, weather, ndvi: ndvi.observations })
-      }
+        return { ...season, weather, ndvi: ndviResults[index].observations }
+      })
 
       const currentSeason = observations[0]
-      if (precipitationNormal) {
-        currentSeason.precipitation_normal_mm = Number(precipitationNormal)
-      }
-      if (rootzoneNormal) {
-        currentSeason.rootzone_normal_m3_m3 = Number(rootzoneNormal)
-      }
 
       const cropProfiles = cropHistoryEntries.map(({ crop }, index) => cropProfile(
         crop,
@@ -254,15 +267,6 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
         seasons: observations,
         crop_history: cropHistoryEntries,
         crop_profiles: cropProfiles,
-        yield_predictions: yieldValue
-          ? [{
-            year: currentYear,
-            crop: currentCrop.trim(),
-            predicted_yield: Number(yieldValue),
-            units: yieldUnits,
-            model: 'Externally supplied prediction',
-          }]
-          : [],
       }
 
       if (includeSmap) {
@@ -280,12 +284,21 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
 
       setProgress('Sending the collected data to Gemini for analysis…')
       const analysis = await postJson('/api/agronomy/analyze', request)
+      const slides = parseAnalysisSlides(analysis.analysis_markdown)
       setResult(analysis)
+      if (slides.length) onMapInsightChange?.(mapInsightFor(0, slides))
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Agronomy analysis failed.')
     } finally {
       setLoading(false)
       setProgress('')
+    }
+  }
+
+  const goToSlide = (index) => {
+    setActiveSlide(index)
+    if (result && analysisSlides[index]) {
+      onMapInsightChange?.(mapInsightFor(index, analysisSlides))
     }
   }
 
@@ -330,38 +343,44 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
         </label>
         <details className="agronomy-details">
           <summary>Optional crop traits and reference values</summary>
-          <p>Crop traits are optional. Gemini can use general agronomy knowledge and will flag uncertain or conflicting information.</p>
-          <div className="agronomy-trait-fields">
-            <label>
-              Current crop: nitrogen-fixing?
-              <select value={currentNitrogenFixing} onChange={(event) => setCurrentNitrogenFixing(event.target.value)}>
-                <option value="">Not provided</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </label>
-            <label>
-              Current crop: root depth
-              <select value={currentRootDepth} onChange={(event) => setCurrentRootDepth(event.target.value)}>
-                <option value="">Not provided</option>
-                <option value="shallow">Shallow</option>
-                <option value="medium">Medium</option>
-                <option value="deep">Deep</option>
-              </select>
-            </label>
-            <label>
-              Current crop: pest-host groups
-              <input
-                type="text"
-                value={currentPestGroups}
-                onChange={(event) => setCurrentPestGroups(event.target.value)}
-                placeholder="Comma-separated, optional"
-              />
-            </label>
-            {previousCrop.trim() && (
-              <>
+          <p>These details help tailor rotation ideas. Leave anything unknown blank.</p>
+          <section className="agronomy-form-group" aria-labelledby="current-crop-profile">
+            <h4 id="current-crop-profile">Current crop profile</h4>
+            <div className="agronomy-trait-fields">
+              <label>
+                Nitrogen fixing
+                <select value={currentNitrogenFixing} onChange={(event) => setCurrentNitrogenFixing(event.target.value)}>
+                  <option value="">Not provided</option>
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </label>
+              <label>
+                Root depth
+                <select value={currentRootDepth} onChange={(event) => setCurrentRootDepth(event.target.value)}>
+                  <option value="">Not provided</option>
+                  <option value="shallow">Shallow</option>
+                  <option value="medium">Medium</option>
+                  <option value="deep">Deep</option>
+                </select>
+              </label>
+              <label className="agronomy-field-wide">
+                Pest-host groups
+                <input
+                  type="text"
+                  value={currentPestGroups}
+                  onChange={(event) => setCurrentPestGroups(event.target.value)}
+                  placeholder="Comma-separated, if known"
+                />
+              </label>
+            </div>
+          </section>
+          {previousCrop.trim() && (
+            <section className="agronomy-form-group" aria-labelledby="previous-crop-profile">
+              <h4 id="previous-crop-profile">Most recent historical crop</h4>
+              <div className="agronomy-trait-fields">
                 <label>
-                  Most recent historical crop: nitrogen-fixing?
+                  Nitrogen fixing
                   <select value={previousNitrogenFixing} onChange={(event) => setPreviousNitrogenFixing(event.target.value)}>
                     <option value="">Not provided</option>
                     <option value="yes">Yes</option>
@@ -369,7 +388,7 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
                   </select>
                 </label>
                 <label>
-                  Most recent historical crop: root depth
+                  Root depth
                   <select value={previousRootDepth} onChange={(event) => setPreviousRootDepth(event.target.value)}>
                     <option value="">Not provided</option>
                     <option value="shallow">Shallow</option>
@@ -377,64 +396,24 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
                     <option value="deep">Deep</option>
                   </select>
                 </label>
-                <label>
-                  Most recent historical crop: pest-host groups
+                <label className="agronomy-field-wide">
+                  Pest-host groups
                   <input
                     type="text"
                     value={previousPestGroups}
                     onChange={(event) => setPreviousPestGroups(event.target.value)}
-                    placeholder="Comma-separated, optional"
+                    placeholder="Comma-separated, if known"
                   />
                 </label>
-              </>
-            )}
-          </div>
-          <div className="agronomy-date-fields">
-            <label>
-              Seasonal precipitation normal (mm)
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={precipitationNormal}
-                onChange={(event) => setPrecipitationNormal(event.target.value)}
-                placeholder="Optional"
-              />
-            </label>
-            <label>
-              Root-zone moisture normal (m³/m³)
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={rootzoneNormal}
-                onChange={(event) => setRootzoneNormal(event.target.value)}
-                placeholder="Optional"
-              />
-            </label>
-          </div>
-          <div className="agronomy-date-fields">
-            <label>
-              External yield estimate
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={yieldValue}
-                onChange={(event) => setYieldValue(event.target.value)}
-                placeholder="Optional — no yield model is included"
-              />
-            </label>
-            <label>
-              Yield units
-              <input
-                type="text"
-                value={yieldUnits}
-                onChange={(event) => setYieldUnits(event.target.value)}
-                maxLength={40}
-              />
-            </label>
-          </div>
+              </div>
+            </section>
+          )}
+          <section className="agronomy-form-group" aria-labelledby="crop-context">
+            <h4 id="crop-context">Season context and yield outlook</h4>
+            <p className="agronomy-context-note">
+              Gemini will compare observed weather and vegetation with broad needs for the named crop, then offer a cautious qualitative outlook. It won’t invent local climate normals or a numeric yield forecast.
+            </p>
+          </section>
           <label className="agronomy-checkbox">
             <input
               type="checkbox"
@@ -455,6 +434,7 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
       </form>
       {result && (
         <div className="agronomy-result" aria-live="polite">
+          {dataWarning && <p className="agronomy-data-warning" role="status">{dataWarning}</p>}
           <div className="agronomy-result-heading">
             <span className="result-label">Gemini analysis</span>
             <span>{result.model}</span>
@@ -495,7 +475,7 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
                 <button
                   type="button"
                   className="agronomy-story-arrow"
-                  onClick={() => setActiveSlide((index) => Math.max(0, index - 1))}
+                  onClick={() => goToSlide(Math.max(0, activeSlide - 1))}
                   disabled={activeSlide === 0}
                   aria-label="Previous takeaway"
                 >
@@ -507,7 +487,7 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
                       type="button"
                       key={slide.title}
                       className={index === activeSlide ? 'is-active' : ''}
-                      onClick={() => setActiveSlide(index)}
+                      onClick={() => goToSlide(index)}
                       aria-label={`Go to takeaway ${index + 1}: ${slide.title}`}
                       aria-current={index === activeSlide ? 'step' : undefined}
                     />
@@ -516,7 +496,7 @@ export default function AgronomyAnalysis({ coordinates, geometry }) {
                 <button
                   type="button"
                   className="agronomy-story-arrow"
-                  onClick={() => setActiveSlide((index) => Math.min(analysisSlides.length - 1, index + 1))}
+                  onClick={() => goToSlide(Math.min(analysisSlides.length - 1, activeSlide + 1))}
                   disabled={activeSlide === analysisSlides.length - 1}
                   aria-label="Next takeaway"
                 >

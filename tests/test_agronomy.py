@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from urllib.error import HTTPError
 from unittest.mock import patch
 
 from fastapi import HTTPException
@@ -199,9 +200,15 @@ class AgronomyFeatureTests(unittest.TestCase):
         system_instruction = getattr(kwargs["config"], "system_instruction")
         self.assertIn("Farm-specific measurements", system_instruction)
         self.assertIn("general agronomic knowledge", system_instruction)
+        self.assertIn("rough qualitative comparison", system_instruction)
+        self.assertIn("qualitative yield outlook", system_instruction)
+        self.assertIn("numeric yield estimates", system_instruction)
         self.assertIn("animated 5-card frontend walkthrough", system_instruction)
         self.assertIn("under 180 words", system_instruction)
         self.assertIn("No bold, italics", system_instruction)
+        self.assertIn("exactly 3 distinct", system_instruction)
+        self.assertIn("exactly 3 numbered short options", system_instruction)
+        self.assertIn("20 words or fewer", system_instruction)
         self.assertIn("corn is not a nitrogen-fixing crop", system_instruction)
         self.assertIn("crop rotation", AGRONOMY_SYSTEM_INSTRUCTION.lower())
         self.assertEqual(kwargs["model"], "gemini-3.6-flash")
@@ -353,7 +360,7 @@ class AgronomyRequestValidationTests(unittest.TestCase):
         with patch(
             "scripts.ndvi_api.urlopen",
             return_value=io.BytesIO(json.dumps(nasa_payload).encode()),
-        ):
+        ) as power_request:
             result = get_power_data_cached(
                 43.0,
                 -80.0,
@@ -375,6 +382,40 @@ class AgronomyRequestValidationTests(unittest.TestCase):
         if not isinstance(summary, dict):
             self.fail("POWER summary should be a dictionary.")
         self.assertEqual(summary["precipitation_mm_total"], 7)
+        request = power_request.call_args.args[0]
+        self.assertEqual(
+            request.get_header("User-agent"),
+            "DirtDoc/1.0 (NASA POWER climate data client)",
+        )
+        get_power_data_cached.cache_clear()
+
+    def test_power_rate_limit_is_reported_as_service_unavailable(self) -> None:
+        get_power_data_cached.cache_clear()
+        upstream_body = json.dumps({
+            "header": "NASA POWER received too many requests.",
+            "message": "Please try again later.",
+        }).encode()
+        upstream_error = HTTPError(
+            "https://power.larc.nasa.gov/",
+            429,
+            "Too Many Requests",
+            None,
+            io.BytesIO(upstream_body),
+        )
+        with (
+            patch("scripts.ndvi_api.urlopen", side_effect=upstream_error),
+            self.assertRaises(HTTPException) as raised,
+        ):
+            get_power_data_cached(
+                43.0,
+                -80.0,
+                date(2025, 5, 1),
+                date(2025, 5, 2),
+            )
+
+        self.assertEqual(raised.exception.status_code, 503)
+        self.assertIn("HTTP 429", raised.exception.detail)
+        self.assertIn("Please try again later", raised.exception.detail)
         get_power_data_cached.cache_clear()
 
 

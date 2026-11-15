@@ -22,13 +22,6 @@ function App() {
   const [selectedGeometry, setSelectedGeometry] = useState(null)
   const [selectionConfirmed, setSelectionConfirmed] = useState(false)
   const [fieldAreaAcres, setFieldAreaAcres] = useState(null)
-  const [ndviResult, setNdviResult] = useState(null)
-  const [ndviError, setNdviError] = useState('')
-  const [powerResult, setPowerResult] = useState(null)
-  const [powerError, setPowerError] = useState('')
-  const [smapResult, setSmapResult] = useState(null)
-  const [smapError, setSmapError] = useState('')
-
   useEffect(() => {
     const handleHashChange = () => setRoute(routeFromHash(window.location.hash))
     window.addEventListener('hashchange', handleHashChange)
@@ -49,24 +42,12 @@ function App() {
     setSelectedGeometry(null)
     setSelectionConfirmed(false)
     setFieldAreaAcres(null)
-    setNdviResult(null)
-    setNdviError('')
-    setPowerResult(null)
-    setPowerError('')
-    setSmapResult(null)
-    setSmapError('')
   }
 
   const resetSelection = () => {
     setSelectedGeometry(null)
     setSelectionConfirmed(false)
     setFieldAreaAcres(null)
-    setNdviResult(null)
-    setNdviError('')
-    setPowerResult(null)
-    setPowerError('')
-    setSmapResult(null)
-    setSmapError('')
   }
 
   return (
@@ -79,7 +60,6 @@ function App() {
           coordinates={coordinates}
           selectedGeometry={selectedGeometry}
           onCoordinatesChange={updateCoordinates}
-          selectedGeometry={selectedGeometry}
           selectionConfirmed={selectionConfirmed}
           fieldAreaAcres={fieldAreaAcres}
           onSelectionConfirm={({ geometry, areaAcres, coordinates: center }) => {
@@ -89,18 +69,6 @@ function App() {
             setSelectionConfirmed(true)
           }}
           onSelectionReset={resetSelection}
-          ndviResult={ndviResult}
-          ndviError={ndviError}
-          powerResult={powerResult}
-          powerError={powerError}
-          smapResult={smapResult}
-          smapError={smapError}
-          setNdviResult={setNdviResult}
-          setNdviError={setNdviError}
-          setPowerResult={setPowerResult}
-          setPowerError={setPowerError}
-          setSmapResult={setSmapResult}
-          setSmapError={setSmapError}
         />
       )}
     </div>
@@ -217,18 +185,6 @@ function FarmPage({
   fieldAreaAcres,
   onSelectionConfirm,
   onSelectionReset,
-  ndviResult,
-  ndviError,
-  powerResult,
-  powerError,
-  smapResult,
-  smapError,
-  setNdviResult,
-  setNdviError,
-  setPowerResult,
-  setPowerError,
-  setSmapResult,
-  setSmapError,
 }) {
   return (
     <main className="page-transition farm-page">
@@ -241,99 +197,21 @@ function FarmPage({
         fieldAreaAcres={fieldAreaAcres}
         onSelectionConfirm={onSelectionConfirm}
         onSelectionReset={onSelectionReset}
-        onNdviResult={setNdviResult}
-        onNdviError={setNdviError}
-        onPowerResult={setPowerResult}
-        onPowerError={setPowerError}
-        onSmapResult={setSmapResult}
-        onSmapError={setSmapError}
-        analysisPanel={selectionConfirmed && (
-          <AgronomyAnalysis coordinates={coordinates} geometry={selectedGeometry} />
-        )}
+        analysisPanel={selectionConfirmed
+          ? (onMapInsightChange) => (
+            <AgronomyAnalysis
+              coordinates={coordinates}
+              geometry={selectedGeometry}
+              onMapInsightChange={onMapInsightChange}
+            />
+          )
+          : null}
       />
-      {(ndviResult || ndviError || powerResult || powerError || smapResult || smapError) && (
-        <section className="results-section" aria-label="Field data results">
-          {ndviResult && (
-            <article className="result-panel result-panel--ndvi">
-              <span className="result-label">Satellite vegetation</span>
-              <h2>Average NDVI <strong>{ndviResult.average_ndvi.toFixed(3)}</strong></h2>
-              <p>{ndviResult.start_date} — {ndviResult.end_date}</p>
-            </article>
-          )}
-          {ndviError && <p className="result-error" role="alert">{ndviError}</p>}
-          {powerResult && <PowerSummary result={powerResult} />}
-          {powerError && <p className="result-error" role="alert">{powerError}</p>}
-          {smapResult && <SmapSummary result={smapResult} />}
-          {smapError && <p className="result-error" role="alert">{smapError}</p>}
-        </section>
-      )}
       <footer className="farm-footer">
         <span>NASA HLS · NASA POWER · NASA SMAP</span>
         <span>Climate data reflects source-grid resolution.</span>
       </footer>
     </main>
-  )
-}
-
-function SmapSummary({ result }) {
-  const values = [
-    { key: 'surface_soil_moisture_m3_m3', label: 'Surface · 0–5 cm' },
-    { key: 'rootzone_soil_moisture_m3_m3', label: 'Root zone · 0–100 cm' },
-  ]
-
-  return (
-    <article className="result-panel result-panel--smap">
-      <div className="power-heading">
-        <div>
-          <span className="result-label">NASA SMAP · 3-hourly estimate</span>
-          <p>{result.start_time} — {result.end_time} · grid cell nearest field center</p>
-        </div>
-        <span className="power-coordinate">{result.grid_cell_latitude.toFixed(3)}°, {result.grid_cell_longitude.toFixed(3)}°</span>
-      </div>
-      <div className="smap-values">
-        {values.map(({ key, label }) => (
-          <div className="power-value" key={key}>
-            <span>{label}</span>
-            <strong>{result[key].toFixed(3)} {result.units}</strong>
-          </div>
-        ))}
-      </div>
-      <p className="power-note">
-        Modeled and assimilated regional context at approximately {result.resolution_km} km resolution; not a field-scale measurement.
-      </p>
-    </article>
-  )
-}
-
-function PowerSummary({ result }) {
-  const values = [
-    { key: 'tmax_c_avg', daysKey: 'tmax', label: 'Avg. daily high', unit: '°C' },
-    { key: 'tmin_c_avg', daysKey: 'tmin', label: 'Avg. daily low', unit: '°C' },
-    { key: 'precipitation_mm_total', daysKey: 'precipitation', label: 'Total precipitation', unit: 'mm' },
-    { key: 'relative_humidity_pct_avg', daysKey: 'humidity', label: 'Avg. humidity', unit: '%' },
-    { key: 'solar_mj_m2_day_avg', daysKey: 'solar', label: 'Avg. solar energy', unit: 'MJ/m²/day' },
-  ]
-
-  return (
-    <article className="result-panel result-panel--power">
-      <div className="power-heading">
-        <div>
-          <span className="result-label">NASA POWER · Daily summary</span>
-          <p>{result.start_date} — {result.end_date} · near field center</p>
-        </div>
-        <span className="power-coordinate">{result.latitude.toFixed(3)}°, {result.longitude.toFixed(3)}°</span>
-      </div>
-      <div className="power-values">
-        {values.map(({ key, daysKey, label, unit }) => (
-          <div className="power-value" key={key}>
-            <span>{label}</span>
-            <strong>{result.summary[key] == null ? 'Unavailable' : `${result.summary[key]} ${unit}`}</strong>
-            <small>{result.valid_days[daysKey]} valid days</small>
-          </div>
-        ))}
-      </div>
-      <p className="power-note">Regional grid context; not a field-scale measurement.</p>
-    </article>
   )
 }
 

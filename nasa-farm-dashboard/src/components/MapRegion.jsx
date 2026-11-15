@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet-draw/dist/leaflet.draw.css'
-import { apiUrl } from '../api.js'
 import './leaflet-draw-init.js'
 import Geocoder from './Geocoder.jsx'
 
@@ -44,6 +43,17 @@ function selectedCenter(layer) {
   return { lat: center.lat, lon: center.lng }
 }
 
+function walkthroughGraphic(index) {
+  const graphics = [
+    { glyph: '◉', label: 'Season snapshot' },
+    { glyph: '↗', label: 'Season comparison' },
+    { glyph: '⇄', label: 'Rotation ideas' },
+    { glyph: '✓', label: 'Next steps' },
+    { glyph: '?', label: 'Confidence check' },
+  ]
+  return graphics[index] ?? { glyph: '✳', label: 'Field insight' }
+}
+
 export default function MapRegion({
   lat,
   lon,
@@ -53,12 +63,6 @@ export default function MapRegion({
   fieldAreaAcres,
   onSelectionConfirm,
   onSelectionReset,
-  onNdviResult,
-  onNdviError,
-  onPowerResult,
-  onPowerError,
-  onSmapResult,
-  onSmapError,
   analysisPanel,
 }) {
   const [step, setStep] = useState(() => (selectionConfirmed ? 3 : 1))
@@ -70,15 +74,14 @@ export default function MapRegion({
   const [vertexCount, setVertexCount] = useState(0)
   const [isEditing, setIsEditing] = useState(false)
   const [moveMode, setMoveMode] = useState(false)
-  const [loadingNdvi, setLoadingNdvi] = useState(false)
-  const [loadingPower, setLoadingPower] = useState(false)
-  const [loadingSmap, setLoadingSmap] = useState(false)
   const [mapError, setMapError] = useState('')
+  const [analysisMapInsight, setAnalysisMapInsight] = useState(null)
 
   const mapContainerRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markerRef = useRef(null)
   const boundaryLayerRef = useRef(null)
+  const walkthroughMarkerRef = useRef(null)
   const stepRef = useRef(step)
   const moveModeRef = useRef(moveMode)
   const coordinatesRef = useRef({ lat, lon })
@@ -211,8 +214,60 @@ export default function MapRegion({
     map.setView([lat, lon], map.getZoom(), { animate: false })
   }, [lat, lon])
 
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    if (!map) return
+
+    if (walkthroughMarkerRef.current) {
+      map.removeLayer(walkthroughMarkerRef.current)
+      walkthroughMarkerRef.current = null
+    }
+
+    if (!analysisMapInsight || !selectionConfirmed || !boundaryLayerRef.current) return
+
+    const bounds = boundaryLayerRef.current.getBounds()
+    const fieldCenter = bounds.getCenter()
+    const size = map.getSize()
+    const mobileLayout = size.x <= 800
+    const visibleOffsetX = mobileLayout ? 0 : Math.min(205, size.x * 0.3)
+    const visibleOffsetY = mobileLayout ? Math.min(120, size.y * 0.16) : 0
+    const fitPadding = mobileLayout
+      ? L.point(40, Math.min(420, size.y * 0.74))
+      : L.point(Math.min(482, size.x * 0.54), 120)
+    const fitZoom = map.getBoundsZoom(bounds, false, fitPadding)
+    const zoomSteps = [0, 0.8, 0.25, 1, 0.45]
+    const zoom = Math.min(fitZoom + (zoomSteps[analysisMapInsight.index] ?? 0), 17)
+    const projectedCenter = map.project(fieldCenter, zoom)
+      .subtract([visibleOffsetX, -visibleOffsetY])
+    const cameraCenter = map.unproject(projectedCenter, zoom)
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      map.setView(cameraCenter, zoom, { animate: false })
+    } else {
+      map.flyTo(cameraCenter, zoom, { duration: 1.15, easeLinearity: 0.25 })
+    }
+
+    const graphic = walkthroughGraphic(analysisMapInsight.index)
+    const icon = L.divIcon({
+      className: 'walkthrough-map-icon-container',
+      html: `<span class="walkthrough-map-icon"><span class="walkthrough-map-icon__glyph">${graphic.glyph}</span><span class="walkthrough-map-icon__count">${String(analysisMapInsight.index + 1).padStart(2, '0')}</span></span>`,
+      iconSize: [76, 76],
+      iconAnchor: [38, 38],
+    })
+    walkthroughMarkerRef.current = L.marker(fieldCenter, {
+      icon,
+      interactive: false,
+      keyboard: false,
+      zIndexOffset: 1000,
+      title: graphic.label,
+    }).addTo(map)
+  }, [analysisMapInsight, selectionConfirmed])
+
   const forgetConfirmedSelection = () => {
-    if (selectionConfirmed) onSelectionReset()
+    if (selectionConfirmed) {
+      onSelectionReset()
+      setAnalysisMapInsight(null)
+    }
   }
 
   const startDrawing = () => {
@@ -289,6 +344,11 @@ export default function MapRegion({
     setIsEditing(false)
     setMoveMode(false)
     moveModeRef.current = false
+    setAnalysisMapInsight(null)
+    if (walkthroughMarkerRef.current) {
+      mapInstanceRef.current?.removeLayer(walkthroughMarkerRef.current)
+      walkthroughMarkerRef.current = null
+    }
   }
 
   const resetSelection = () => {
@@ -306,66 +366,6 @@ export default function MapRegion({
     onSelectionConfirm({ geometry: boundaryGeometry, areaAcres, coordinates: center })
     setStep(3)
     stepRef.current = 3
-  }
-
-  const calculateNdvi = async () => {
-    setLoadingNdvi(true)
-    onNdviError('')
-    onNdviResult(null)
-    try {
-      const response = await fetch(apiUrl('/api/ndvi'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ geometry: selectedGeometry ?? boundaryGeometry }),
-      })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.detail || 'NDVI calculation failed.')
-      onNdviResult(data)
-    } catch (error) {
-      onNdviError(error instanceof Error ? error.message : 'NDVI calculation failed.')
-    } finally {
-      setLoadingNdvi(false)
-    }
-  }
-
-  const fetchPowerData = async () => {
-    setLoadingPower(true)
-    onPowerError('')
-    onPowerResult(null)
-    try {
-      const response = await fetch(apiUrl('/api/power'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ latitude: lat, longitude: lon }),
-      })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.detail || 'NASA POWER request failed.')
-      onPowerResult(data)
-    } catch (error) {
-      onPowerError(error instanceof Error ? error.message : 'NASA POWER request failed.')
-    } finally {
-      setLoadingPower(false)
-    }
-  }
-
-  const fetchSmapData = async () => {
-    setLoadingSmap(true)
-    onSmapError('')
-    onSmapResult(null)
-    try {
-      const response = await fetch(apiUrl('/api/smap'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ latitude: lat, longitude: lon }),
-      })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.detail || 'NASA SMAP request failed.')
-      onSmapResult(data)
-    } catch (error) {
-      onSmapError(error instanceof Error ? error.message : 'NASA SMAP request failed.')
-    } finally {
-      setLoadingSmap(false)
-    }
   }
 
   const handleCoordinatesChange = (nextCoordinates) => {
@@ -495,17 +495,8 @@ export default function MapRegion({
             </div>
             {selectionConfirmed && (
               <div className="data-actions">
-                <p>Use your confirmed field for available satellite, climate, and soil data.</p>
-                <button className="button button--primary" onClick={calculateNdvi} disabled={loadingNdvi}>
-                  {loadingNdvi ? 'Reading satellite data…' : 'Calculate field NDVI'}
-                </button>
-                <button className="button button--outline" onClick={fetchPowerData} disabled={loadingPower}>
-                  {loadingPower ? 'Loading climate…' : 'Get climate data'}
-                </button>
-                <button className="button button--outline" onClick={fetchSmapData} disabled={loadingSmap}>
-                  {loadingSmap ? 'Reading SMAP data…' : 'Get soil moisture'}
-                </button>
-                {analysisPanel}
+                <p>Explore the field data and rotation outlook below.</p>
+                {typeof analysisPanel === 'function' && analysisPanel(setAnalysisMapInsight)}
               </div>
             )}
           </div>
@@ -523,6 +514,13 @@ export default function MapRegion({
           {boundaryGeometry && <span className="area-readout"><strong>{formattedAcres(areaAcres)}</strong> acres</span>}
         </div>
         <div ref={mapContainerRef} className="field-map" />
+        {analysisMapInsight && (
+          <aside className="map-insight-card" aria-live="polite">
+            <span>WALKTHROUGH · {analysisMapInsight.title}</span>
+            <p>{analysisMapInsight.detail}</p>
+            <small>For the entire selected field, not separate crop zones.</small>
+          </aside>
+        )}
         {isDrawing && <p className="map-hint" role="status">Add at least three points around your field.</p>}
       </div>
     </section>

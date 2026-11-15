@@ -98,11 +98,20 @@ summaries, root-zone moisture anomalies, and year-over-year comparisons. Keep
 rainfall (mm) and volumetric soil moisture (m³/m³) as separate features; they
 are not combined into an invented water-availability unit.
 
+NDVI values are whole-field scene averages, not per-pixel vegetation; SMAP is
+one nearest-grid-cell value, not field-scale soil moisture. These are not
+rendered as map layers. The agronomy walkthrough smoothly reframes the selected
+field and shows a pulsing numbered guide marker as its cards advance, without
+implying within-field data. It requests exactly three qualified rotation ideas.
+
 The Gemini system instruction keeps field-specific measurements grounded in
 the supplied payload while allowing clearly labeled qualitative agronomy
 knowledge for crop traits, synergies, and conditional rotation advice. It must
 flag conflicts such as corn marked nitrogen-fixing, and cannot infer site
-conditions, yields, or exact input rates. Add crop history oldest-to-newest,
+conditions, numeric yields, or exact input rates. It can compare observed
+weather and vegetation with general crop needs, then provide a qualitative
+yield outlook when supported; these are not local climate normals or a yield
+prediction. Add crop history oldest-to-newest,
 ideally with one year per line (for example `2023: corn`, `2024: soybeans`,
 `2025: corn`) to enable useful rotation reasoning. Without sufficient history
 or local soil and management details, recommendations remain conditional. This
@@ -113,6 +122,11 @@ SDK-internal retries are disabled and each attempt has a 45-second timeout,
 so persistent provider failures return to the frontend instead of leaving the
 request pending for several minutes. Analysis is limited to five concise
 walkthrough cards with plain-text bullets.
+
+The agronomy workflow requests NASA POWER once for the combined comparison
+period, then splits the daily observations between seasons. If NASA POWER
+returns HTTP 429, the API reports its rate-limit message as HTTP 503 rather
+than masking it as a generic 502; wait and retry if NASA's limit is active.
 
 The season records accept the daily field names returned by `/api/power` and
 the `{date, ndvi}` observations returned by `/api/ndvi`. For example:
